@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import styled from "styled-components";
 import { AUTH_COOKIE_NAME } from "../lib/auth";
 import { loginUser } from "../lib/api";
-import { useState, useEffect } from "react";
 
 const AuthPage = styled.main`
   min-height: 100vh;
