@@ -1,6 +1,7 @@
 'use client';
 
 import styled from 'styled-components';
+import { API } from "../lib/data";
 
 const FiltersPanelContainer = styled.div`
   max-height: 0;

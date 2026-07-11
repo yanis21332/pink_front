@@ -19,6 +19,7 @@ import Table from "../components/Table";
 import Modal from "../components/Modal";
 import { socket } from "../lib/socket";
 import ManagementPage from "../components/ManagementPage";
+import { API } from "../lib/data";
 
 const Content = styled.div`
   padding: 32px;
@@ -43,7 +44,7 @@ const AlertBox = styled.div`
 `;
 
 // Configuration de base d'Axios (à adapter selon l'URL de votre serveur)
-const API_URL = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/appointements`;
+const API_URL = `${API || "http://localhost:5000"}/api/appointements`;
 
 export default function HomePage() {
   // On commence avec un tableau vide, en attendant les données du serveur
@@ -127,7 +128,7 @@ export default function HomePage() {
     const fetchPractitioners = async () => {
       try {
         const response = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/practitioner/get-practitioners`,
+          `${API}/api/practitioner/get-practitioners`,
           { withCredentials: true },
         );
         const mappedData = response.data.practitioners.map((pr) => ({
@@ -150,7 +151,7 @@ export default function HomePage() {
     const fetchBills = async () => {
       try {
         const response = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/bills/get-bills`,
+          `${API}/api/bills/get-bills`,
           { withCredentials: true },
         );
         const mappedData = response.data.bills.map((bill) => ({
@@ -169,7 +170,7 @@ export default function HomePage() {
     const fetchMenu = async () => {
       try {
         const response = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/menu/get-menu`,
+          `${API}/api/menu/get-menu`,
           { withCredentials: true },
         );
         const mappedData = response.data.menu.map((m) => ({

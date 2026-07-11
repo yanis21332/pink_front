@@ -3,6 +3,7 @@
 import styled from "styled-components";
 import { SERVICES } from "../lib/data";
 import { useEffect, useState } from "react";
+import { API } from "../lib/data";
 
 const HeroContainer = styled.div`
   position: relative;

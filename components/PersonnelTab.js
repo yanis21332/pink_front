@@ -3,6 +3,7 @@
 import { useState } from "react";
 import styled from "styled-components";
 import axios from "axios";
+import { API } from "../lib/data";
 
 const allowedSpecialties = [
   "hammam",
@@ -304,7 +305,7 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
 
     try {
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/practitioner/create-practitioner`,
+        `${API}/api/practitioner/create-practitioner`,
         {
           fullName: newPractitionerName.trim(),
           domain: newPractitionerSpecialties,
@@ -339,7 +340,7 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
 
     try {
       const response = await axios.patch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/practitioner/update-practitioner/${practitioner.id||practitioner._id}`,
+        `${API}/api/practitioner/update-practitioner/${practitioner.id||practitioner._id}`,
         {
           domain: editSpecialties,
         },
@@ -368,7 +369,7 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
 
     try {
       await axios.delete(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/practitioner/delete-practitioner/${id}`,
+        `${API}/api/practitioner/delete-practitioner/${id}`,
         { withCredentials: true },
       );
       onPractitionersChange((prev) => prev.filter((item) => item.id !== id));
@@ -386,7 +387,7 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
 
     try {
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/menu/create-category`,
+        `${API}/api/menu/create-category`,
         { categoryName: newCategoryName.trim() },
         { withCredentials: true },
       );
@@ -410,7 +411,7 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
 
     try {
       await axios.delete(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/menu/delete-category/${id}`,
+        `${API}/api/menu/delete-category/${id}`,
         { withCredentials: true },
       );
       onMenuChange((prev) => prev.filter((category) => category.id !== id));
@@ -448,7 +449,7 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
 
     try {
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/menu/add-service/${categoryId}`,
+        `${API}/api/menu/add-service/${categoryId}`,
         {
           name: current.name.trim(),
           price: Number(current.price),
@@ -476,7 +477,7 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
 
     try {
       const response = await axios.delete(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/menu/delete-service/${categoryId}/${serviceId}`,
+        `${API}/api/menu/delete-service/${categoryId}/${serviceId}`,
         { withCredentials: true },
       );
       const updated = response.data.category || response.data;

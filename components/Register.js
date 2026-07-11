@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import styled from "styled-components";
 import { AUTH_COOKIE_NAME } from "../lib/auth";
 import { loginUser } from "../lib/api";
+import { API } from "../lib/data";
 
 const AuthPage = styled.main`
   min-height: 100vh;
@@ -150,7 +151,7 @@ export default function Register() {
 
     const res = await loginUser(username, password);
     if(!res.ok) {
-      console.log(res);
+
       setError(res.error || "Erreur de connexion.");
       setLoading(false);
       return;
@@ -158,10 +159,6 @@ export default function Register() {
     setLoading(false);
     window.location.href = '/';
   };
-
-  useEffect(()=>{
-    console.log("L'URL de mon API est actuellement :", process.env.NEXT_PUBLIC_API_URL);
-  },[])
 
   return (
     <AuthPage>

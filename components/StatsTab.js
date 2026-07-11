@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { API } from "../lib/data";
 import styled from "styled-components";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 

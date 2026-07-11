@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import styled from "styled-components";
 import axios from "axios";
 import BillCard from "./BillCard";
+import { API } from "../lib/data";
 import BillFormModal from "./BillFormModal";
 
 const BillsContainer = styled.div`
@@ -216,7 +217,7 @@ export default function BillsTab({ bills, menu, onBillsChange }) {
   const handleCreateBill = async (billData) => {
     try {
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/bills/create-bill`,
+        `${API}/api/bills/create-bill`,
         billData,
         { withCredentials: true },
       );

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import styled from "styled-components";
+import { API } from "../lib/data";
 
 const ModalOverlay = styled.div`
   display: ${(props) => (props.$open ? "flex" : "none")};

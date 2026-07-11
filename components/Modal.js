@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import styled from "styled-components";
 import { SERVICES, CAT_KEYS } from "../lib/data";
+import { API } from "../lib/data";
 
 const Overlay = styled.div`
   position: fixed;
