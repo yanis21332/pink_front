@@ -4,7 +4,7 @@ import { useState } from "react";
 import styled from "styled-components";
 import { AUTH_COOKIE_NAME } from "../lib/auth";
 import { loginUser } from "../lib/api";
-
+import { useState, useEffect } from "react";
 
 const AuthPage = styled.main`
   min-height: 100vh;
@@ -158,6 +158,10 @@ export default function Register() {
     setLoading(false);
     window.location.href = '/';
   };
+
+  useEffect(()=>{
+    console.log("L'URL de mon API est actuellement :", process.env.NEXT_PUBLIC_API_URL);
+  },[])
 
   return (
     <AuthPage>
