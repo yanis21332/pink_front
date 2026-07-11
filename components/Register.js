@@ -150,6 +150,7 @@ export default function Register() {
 
     const res = await loginUser(username, password);
     if(!res.ok) {
+      console.log(res);
       setError(res.error || "Erreur de connexion.");
       setLoading(false);
       return;
