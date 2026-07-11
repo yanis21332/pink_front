@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import styled from "styled-components";
-import axios from "axios"; // Importer axios pour les requêtes HTTP
+import api from "../lib/axios"; // Importer axios pour les requêtes HTTP
 
 import { getFiltered } from "../lib/utils";
 import {
@@ -97,7 +97,7 @@ export default function HomePage() {
   useEffect(() => {
     const fetchAppointments = async () => {
       try {
-        const response = await axios.get(`${API_URL}/get-all-appointements`, {
+        const response = await api.get(`${API_URL}/get-all-appointements`, {
           withCredentials: true,
         });
 
@@ -127,7 +127,7 @@ export default function HomePage() {
     };
     const fetchPractitioners = async () => {
       try {
-        const response = await axios.get(
+        const response = await api.get(
           `${API}/api/practitioner/get-practitioners`,
           { withCredentials: true },
         );
@@ -150,7 +150,7 @@ export default function HomePage() {
     };
     const fetchBills = async () => {
       try {
-        const response = await axios.get(
+        const response = await api.get(
           `${API}/api/bills/get-bills`,
           { withCredentials: true },
         );
@@ -160,16 +160,16 @@ export default function HomePage() {
         }));
         setBills(mappedData);
       } catch (err) {
-        console.error("Erreur lors de la récupération des factures :", error);
+        console.error("Erreur lors de la récupération des factures :", err);
         showAlert(
           "error",
-          error?.response?.data?.error || "Impossible de charger les factures.",
+          err?.response?.data?.error || "Impossible de charger les factures.",
         );
       }
     };
     const fetchMenu = async () => {
       try {
-        const response = await axios.get(
+        const response = await api.get(
           `${API}/api/menu/get-menu`,
           { withCredentials: true },
         );
@@ -334,7 +334,7 @@ export default function HomePage() {
         updatedFields = { ...currentAppt, [field]: value };
       }
 
-      await axios.patch(`${API_URL}/update-appointement/${id}`, updatedFields, {
+      await api.patch(`${API_URL}/update-appointement/${id}`, updatedFields, {
         withCredentials: true,
       });
     } catch (error) {
@@ -363,7 +363,7 @@ export default function HomePage() {
 
   const handleApptDelete = async (id) => {
     try {
-      await axios.delete(`${API_URL}/delete-appointement/${id}`, {
+      await api.delete(`${API_URL}/delete-appointement/${id}`, {
         withCredentials: true,
       });
       setAppts((prev) => prev.filter((appt) => appt.id !== id));
@@ -391,7 +391,7 @@ export default function HomePage() {
         status: data.status || data.statut,
       };
 
-      const response = await axios.post(
+      const response = await api.post(
         `${API_URL}/create-appointement`,
         apptToSend,
         { withCredentials: true },

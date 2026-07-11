@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import styled from "styled-components";
-import axios from "axios";
+import api from "../lib/axios";
 import { API } from "../lib/data";
 
 const allowedSpecialties = [
@@ -304,7 +304,7 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
     }
 
     try {
-      const response = await axios.post(
+      const response = await api.post(
         `${API}/api/practitioner/create-practitioner`,
         {
           fullName: newPractitionerName.trim(),
@@ -339,7 +339,7 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
     }
 
     try {
-      const response = await axios.patch(
+      const response = await api.patch(
         `${API}/api/practitioner/update-practitioner/${practitioner.id||practitioner._id}`,
         {
           domain: editSpecialties,
@@ -368,7 +368,7 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
     if (!confirmed) return;
 
     try {
-      await axios.delete(
+      await api.delete(
         `${API}/api/practitioner/delete-practitioner/${id}`,
         { withCredentials: true },
       );
@@ -386,7 +386,7 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
     }
 
     try {
-      const response = await axios.post(
+      const response = await api.post(
         `${API}/api/menu/create-category`,
         { categoryName: newCategoryName.trim() },
         { withCredentials: true },
@@ -410,7 +410,7 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
     if (!confirmed) return;
 
     try {
-      await axios.delete(
+      await api.delete(
         `${API}/api/menu/delete-category/${id}`,
         { withCredentials: true },
       );
@@ -448,7 +448,7 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
     }
 
     try {
-      const response = await axios.post(
+      const response = await api.post(
         `${API}/api/menu/add-service/${categoryId}`,
         {
           name: current.name.trim(),
@@ -476,7 +476,7 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
     if (!confirmed) return;
 
     try {
-      const response = await axios.delete(
+      const response = await api.delete(
         `${API}/api/menu/delete-service/${categoryId}/${serviceId}`,
         { withCredentials: true },
       );
