@@ -133,7 +133,6 @@ export default function SidebarComponent({
           >
             <BrandCircle className="imgCircle" $imgI={i+1}></BrandCircle>
             <span>{service.label}</span>
-            <NavCount>{count}</NavCount>
           </NavItem>
         );
       })}

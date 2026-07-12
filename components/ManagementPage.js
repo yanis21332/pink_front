@@ -66,7 +66,7 @@ const TabContent = styled.div`
   }
 `;
 
-export default function ManagementPage({ bills, menu, practitioners, onBillsChange, onPractitionersChange, onMenuChange }) {
+export default function ManagementPage({  menu, practitioners, onBillsChange,totalBillPages,setCurrentBillPage, onPractitionersChange, onMenuChange }) {
   const [activeTab, setActiveTab] = useState("factures");
 
   return (
@@ -93,11 +93,11 @@ export default function ManagementPage({ bills, menu, practitioners, onBillsChan
       </TabNavigation>
 
       <TabContent $active={activeTab === "factures"}>
-        <BillsTab bills={bills} menu={menu} onBillsChange={onBillsChange} />
+        <BillsTab menu={menu} onBillsChange={onBillsChange} />
       </TabContent>
 
       <TabContent $active={activeTab === "stats"}>
-        <StatsTab bills={bills} />
+        <StatsTab />
       </TabContent>
 
       <TabContent $active={activeTab === "personnel"}>

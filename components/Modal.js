@@ -244,7 +244,7 @@ export default function Modal({
   practitioners = [],
   existingAppointments = [],
   isEditing = false,
-  serverError = '',
+  serverError = "",
 }) {
   const defaultData = {
     service: activeCategory !== "all" ? activeCategory : "hammam",
@@ -256,7 +256,7 @@ export default function Modal({
     note: "",
     exactDate: (() => {
       const today = new Date();
-      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     })(),
     practitioner: "",
   };
@@ -264,7 +264,7 @@ export default function Modal({
   const [formData, setFormData] = useState(
     initialData ? { ...initialData } : defaultData,
   );
-  const [modalError, setModalError] = useState('');
+  const [modalError, setModalError] = useState("");
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
@@ -273,33 +273,36 @@ export default function Modal({
 
   const getTodayDate = () => {
     const today = new Date();
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   };
 
   const getCurrentTimeInMinutes = () => {
     const now = new Date();
     return now.getHours() * 60 + now.getMinutes();
   };
-
+  const estFormatHeure = (str) => {
+    const regexHeure = /^(0?[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/;
+    return regexHeure.test(str);
+  };
   const normalizeDate = (value) => {
     if (!value) return null;
     // Si c'est déjà au format YYYY-MM-DD, le retourner directement
-    if (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    if (typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}$/)) {
       return value;
     }
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return null;
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   };
 
   const toMinutes = (value) => {
     if (!value) return null;
     let time = value;
-    if (typeof time === 'string' && time.includes('T')) {
-      time = time.split('T')[1];
+    if (typeof time === "string" && time.includes("T")) {
+      time = time.split("T")[1];
     }
-    time = time.replace('Z', '').split('.')[0];
-    const [hh, mm] = time.split(':').map(Number);
+    time = time.replace("Z", "").split(".")[0];
+    const [hh, mm] = time.split(":").map(Number);
     if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
     return hh * 60 + mm;
   };
@@ -308,8 +311,8 @@ export default function Modal({
     if (!appt) return null;
     if (appt.exactDate) return normalizeDate(appt.exactDate);
     if (appt.date) return normalizeDate(appt.date);
-    if (appt.startTime?.includes('T')) {
-      return normalizeDate(appt.startTime.split('T')[0]);
+    if (appt.startTime?.includes("T")) {
+      return normalizeDate(appt.startTime.split("T")[0]);
     }
     return null;
   };
@@ -319,7 +322,7 @@ export default function Modal({
     if (start === null) return null;
     const end =
       toMinutes(appt.endTime || appt.end || appt.fin) ||
-      (start + Number(appt.duration || 60));
+      start + Number(appt.duration || 60);
     return { start, end };
   };
 
@@ -334,7 +337,7 @@ export default function Modal({
 
   useEffect(() => {
     const category =
-      activeCategory !== 'all' ? activeCategory : defaultData.service;
+      activeCategory !== "all" ? activeCategory : defaultData.service;
     const available = (practitioners || []).filter(
       (pr) => Array.isArray(pr.domain) && pr.domain.includes(category),
     );
@@ -348,11 +351,10 @@ export default function Modal({
         ...defaultData,
         service: category,
         exactDate: normalizeDate(prev.exactDate) || defaultData.exactDate,
-        practitioner:
-          prev.practitioner || available[0]?.id || '',
+        practitioner: prev.practitioner ||  "",
       };
     });
-    setModalError('');
+    setModalError("");
     setShowCalendar(false);
   }, [open, initialData, activeCategory, practitioners]);
 
@@ -371,40 +373,51 @@ export default function Modal({
 
   const handleSave = () => {
     if (!formData.clientName.trim()) {
-      setModalError('Veuillez entrer un nom de client.');
+      setModalError("Veuillez entrer un nom de client.");
       return;
     }
 
     if (!formData.practitioner) {
-      setModalError('Veuillez sélectionner une praticienne.');
+      setModalError("Veuillez sélectionner une praticienne.");
       return;
     }
 
-    const startMinutes = toMinutes(formData.startTime);
-    const endMinutes = toMinutes(formData.endTime);
+    // 1. Extraire et isoler les heures au format brut ("9:00") pour les calculs
+    // Si c'est déjà un ISO complet, on extrait juste la partie heure "HH:MM"
+    const rawStart = estFormatHeure(formData.startTime)
+      ? formData.startTime
+      : formData.startTime.split("T")[1]?.substring(0, 5) || "";
+
+    const rawEnd = estFormatHeure(formData.endTime)
+      ? formData.endTime
+      : formData.endTime.split("T")[1]?.substring(0, 5) || "";
+
+    // 2. Calcul des minutes sur les formats "HH:MM"
+    const startMinutes = toMinutes(rawStart);
+    const endMinutes = toMinutes(rawEnd);
 
     if (startMinutes === null || endMinutes === null) {
-      setModalError('Veuillez entrer des heures de début et de fin valides.');
+      setModalError("Veuillez entrer des heures de début et de fin valides.");
       return;
     }
 
     if (startMinutes >= endMinutes) {
-      setModalError(
-        'L’heure de début doit être antérieure à l’heure de fin.',
-      );
+      setModalError("L’heure de début doit être antérieure à l’heure de fin.");
       return;
     }
 
     const appointmentDate = normalizeDate(formData.exactDate);
     if (!appointmentDate) {
-      setModalError('Veuillez sélectionner une date valide.');
+      setModalError("Veuillez sélectionner une date valide.");
       return;
     }
 
     // Validation: date antérieure à aujourd'hui
     const today = getTodayDate();
     if (appointmentDate < today) {
-      setModalError('La date du rendez-vous ne peut pas être antérieure à aujourd\'hui.');
+      setModalError(
+        "La date du rendez-vous ne peut pas être antérieure à aujourd'hui.",
+      );
       return;
     }
 
@@ -412,11 +425,14 @@ export default function Modal({
     if (appointmentDate === today) {
       const currentTime = getCurrentTimeInMinutes();
       if (startMinutes < currentTime) {
-        setModalError('L\'heure de début ne peut pas être antérieure à l\'heure actuelle.');
+        setModalError(
+          "L'heure de début ne peut pas être antérieure à l'heure actuelle.",
+        );
         return;
       }
     }
 
+    // Validation des conflits
     const conflict = (existingAppointments || []).some((appt) => {
       if (!appt?.practitioner) return false;
       if (initialData && appt.id === initialData.id) return false;
@@ -430,19 +446,38 @@ export default function Modal({
 
     if (conflict) {
       setModalError(
-        `La praticienne ${practitioners.find(pr=>pr.id===formData.practitioner)?.fullName} est déjà occupée sur cette plage horaire.`,
+        `La praticienne ${practitioners.find((pr) => pr.id === formData.practitioner)?.fullName} est déjà occupée sur cette plage horaire.`,
       );
       return;
     }
 
-    setModalError('');
-    onSave(formData);
+    // 3. Préparer l'objet final proprement formaté sans polluer le state de manière asynchrone
+    const finalStartTime = estFormatHeure(formData.startTime)
+      ? `${formData.exactDate}T${formData.startTime}:00.000Z`
+      : formData.startTime;
+
+    const finalEndTime = estFormatHeure(formData.endTime)
+      ? `${formData.exactDate}T${formData.endTime}:00.000Z`
+      : formData.endTime;
+
+    const finalData = {
+      ...formData,
+      startTime: finalStartTime,
+      endTime: finalEndTime,
+    };
+
+    setModalError("");
+
+    // Envoi des données formatées
+    onSave(finalData);
+
+    // Réinitialisation du formulaire
     setFormData({
       ...defaultData,
-      service: activeCategory !== 'all' ? activeCategory : defaultData.service,
+      service: activeCategory !== "all" ? activeCategory : defaultData.service,
       practitioner: availablePractitioners[0]
         ? availablePractitioners[0].id
-        : '',
+        : "",
     });
   };
 
@@ -468,34 +503,34 @@ export default function Modal({
   const generateCalendarDays = () => {
     const year = calendarMonth.getFullYear();
     const month = calendarMonth.getMonth();
-    
+
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const prevLastDay = new Date(year, month, 0);
-    
+
     const firstDayOfWeek = firstDay.getDay();
     const lastDateOfMonth = lastDay.getDate();
     const lastDateOfPrevMonth = prevLastDay.getDate();
-    
+
     const days = [];
     const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
     // Days from previous month
     for (let i = firstDayOfWeek - 1; i >= 0; i--) {
       const d = new Date(year, month - 1, lastDateOfPrevMonth - i);
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       days.push({
         date: dateStr,
         isCurrentMonth: false,
         day: lastDateOfPrevMonth - i,
       });
     }
-    
+
     // Days of current month
     for (let i = 1; i <= lastDateOfMonth; i++) {
       const d = new Date(year, month, i);
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       days.push({
         date: dateStr,
         isCurrentMonth: true,
@@ -504,34 +539,36 @@ export default function Modal({
         isPast: dateStr < todayStr,
       });
     }
-    
+
     // Days from next month
     const remainingDays = 42 - days.length;
     for (let i = 1; i <= remainingDays; i++) {
       const d = new Date(year, month + 1, i);
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       days.push({
         date: dateStr,
         isCurrentMonth: false,
         day: i,
       });
     }
-    
+
     return days;
   };
 
   const handleCalendarDateSelect = (dateStr) => {
     // Convertir la chaîne au format local pour éviter les problèmes de fuseau horaire
-    const [year, month, day] = dateStr.split('-').map(Number);
+    const [year, month, day] = dateStr.split("-").map(Number);
     const selected = new Date(year, month - 1, day);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     if (selected < today) {
-      setModalError('Impossible de sélectionner une date antérieure à aujourd\'hui.');
+      setModalError(
+        "Impossible de sélectionner une date antérieure à aujourd'hui.",
+      );
       return;
     }
-    
+
     handleChange("exactDate", dateStr);
     handleChange(
       "startTime",
@@ -550,7 +587,9 @@ export default function Modal({
       onClick={(e) => e.target.id === "overlay" && onClose()}
     >
       <ModalBox onClick={(e) => e.stopPropagation()}>
-        <ModalTitle>{isEditing ? 'Modifier ce rendez-vous' : 'Nouveau rendez-vous'}</ModalTitle>
+        <ModalTitle>
+          {isEditing ? "Modifier ce rendez-vous" : "Nouveau rendez-vous"}
+        </ModalTitle>
 
         <FormGroup>
           <label>Prestation</label>
@@ -577,22 +616,27 @@ export default function Modal({
         </FormGroup>
 
         <FormGroup>
-          <label >Praticienne</label>
+          <label>Praticienne</label>
           <select
             value={formData.practitioner}
             name="practitioner"
             id="practitionerSelect"
-            onChange={(e) => {handleChange("practitioner", e.target.value);}}
+            onChange={(e) => {
+            
+              handleChange("practitioner", e.target.value);
+            }}
           >
             <option value="" disabled>
               {availablePractitioners.length
-                ? 'Sélectionnez une praticienne'
-                : 'Aucune praticienne disponible'}
+                ? "Sélectionnez une praticienne"
+                : "Aucune praticienne disponible"}
             </option>
             {availablePractitioners.map((pr) => {
-              return <option key={pr.id} value={pr.id}>
-                {getPractitionerLabel(pr)}
-              </option>
+              return (
+                <option key={pr.id} value={pr.id}>
+                  {getPractitionerLabel(pr)}
+                </option>
+              );
             })}
           </select>
         </FormGroup>
@@ -650,7 +694,6 @@ export default function Modal({
                   );
                 }}
               />
-             
             </div>
             <div>
               <label>Statut</label>
@@ -678,7 +721,7 @@ export default function Modal({
 
         {modalError && (
           <FormGroup>
-            <span style={{ color: '#b23b3b', fontSize: '0.95rem' }}>
+            <span style={{ color: "#b23b3b", fontSize: "0.95rem" }}>
               {modalError}
             </span>
           </FormGroup>
@@ -689,7 +732,7 @@ export default function Modal({
             Annuler
           </Button>
           <Button className="primary" onClick={handleSave}>
-            {isEditing ? 'Modifier' : 'Créer'}
+            {isEditing ? "Modifier" : "Créer"}
           </Button>
         </ButtonRow>
       </ModalBox>

@@ -11,7 +11,6 @@ const BillsContainer = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
-  
 `;
 
 const HeaderSection = styled.div`
@@ -142,77 +141,91 @@ const LoadingIndicator = styled.div`
   font-family: var(--font-manrope), "Manrope", sans-serif;
   font-size: 14px;
 `;
-
-export default function BillsTab({ bills, menu, onBillsChange }) {
+export default function BillsTab({
+  menu,
+  onBillsChange,
+}) {
   const [sortBy, setSortBy] = useState("date-desc");
   const [displayedBills, setDisplayedBills] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const observerTarget = useRef(null);
   const [itemsPerPage] = useState(10);
-  const [totalLoaded, setTotalLoaded] = useState(itemsPerPage);
 
-  // Tri des factures
-  const sortBills = useCallback(
-    (billsToSort) => {
-      const sorted = [...billsToSort];
+  // Fonction unique de récupération de données depuis le serveur
+  const fetchBillsFromServer = useCallback(
+    async (pageToFetch, isNewSort = false) => {
+      if (isLoading) return;
+      setIsLoading(true);
 
-      switch (sortBy) {
-        case "date-desc":
-          sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-          break;
-        case "date-asc":
-          sorted.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
-          break;
-        case "amount-desc":
-          sorted.sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0));
-          break;
-        case "amount-asc":
-          sorted.sort((a, b) => (a.totalAmount || 0) - (b.totalAmount || 0));
-          break;
-        case "status":
-          sorted.sort((a, b) => Number(b.isPaid) - Number(a.isPaid));
-          break;
-        default:
-          break;
+      try {
+        // Envoi des query params corrects au Back-end (page, limit, sort)
+        const response = await api.get(
+          `${API}/api/bills/get-bills?page=${pageToFetch}&limit=${itemsPerPage}&sort=${sortBy}`,
+          { withCredentials: true },
+        );
+
+        const { bills: fetchedBills, pagination } = response.data;
+
+        const mappedData = fetchedBills.map((bill) => ({
+          ...bill,
+          id: bill._id,
+        }));
+
+        setDisplayedBills((prevBills) => {
+          // Si on change de tri, on remplace les données. Sinon, on les ajoute à la suite.
+          const updated = isNewSort ? mappedData : [...prevBills, ...mappedData];
+          
+          return updated;
+        });
+
+        // Met à jour la présence ou non de pages supplémentaires
+        setHasMore(pageToFetch < pagination.totalPages);
+      } catch (err) {
+        console.error("Erreur lors de la récupération des factures :", err);
+      } finally {
+        setIsLoading(false);
       }
-
-      return sorted;
     },
-    [sortBy],
+    [sortBy, itemsPerPage, isLoading, onBillsChange],
   );
 
-  // Affichage initial
+  // Effet 1 : Déclenché uniquement lorsque le critère de tri change
   useEffect(() => {
-    const sorted = sortBills(bills);
-    setDisplayedBills(sorted.slice(0, itemsPerPage));
-    setTotalLoaded(itemsPerPage);
-  }, [bills, sortBy, sortBills, itemsPerPage]);
+    setPage(1);
+    setHasMore(true);
+    fetchBillsFromServer(1, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortBy]);
 
-  // Intersection Observer pour le lazy loading
+  // Effet 2 : Un seul et unique Intersection Observer connecté au Scroll
   useEffect(() => {
+    if (!hasMore || isLoading) return;
+
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && totalLoaded < bills.length) {
-          setIsLoading(true);
-          setTimeout(() => {
-            const sorted = sortBills(bills);
-            const newTotal = Math.min(totalLoaded + itemsPerPage, bills.length);
-            setDisplayedBills(sorted.slice(0, newTotal));
-            setTotalLoaded(newTotal);
-            setIsLoading(false);
-          }, 300);
+        if (entries[0].isIntersecting) {
+          setPage((prevPage) => {
+            const nextPage = prevPage + 1;
+            fetchBillsFromServer(nextPage, false);
+            return nextPage;
+          });
         }
       },
-      { threshold: 0.1 },
+      { threshold: 1.0 },
     );
 
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current);
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
     }
 
-    return () => observer.disconnect();
-  }, [totalLoaded, bills, sortBills, itemsPerPage]);
+    return () => {
+      if (currentTarget) observer.unobserve(currentTarget);
+    };
+  }, [hasMore, isLoading, fetchBillsFromServer]);
 
   const handleCreateBill = async (billData) => {
     try {
@@ -222,12 +235,12 @@ export default function BillsTab({ bills, menu, onBillsChange }) {
         { withCredentials: true },
       );
 
-      const newBill = {
-        ...response.data,
-        id: response.data._id,
-      };
-
       setModalOpen(false);
+      
+      // Réinitialise le défilement et recharge depuis la première page pour voir le nouvel élément
+      setPage(1);
+      setHasMore(true);
+      fetchBillsFromServer(1, true);
     } catch (error) {
       console.error("Erreur lors de la création de la facture :", error);
       throw error;
@@ -262,13 +275,14 @@ export default function BillsTab({ bills, menu, onBillsChange }) {
       ) : (
         <>
           <BillsList>
-            {displayedBills.map((bill) => (
-              <BillCard key={bill.id} bill={bill} menu={menu} />
+            {displayedBills.map((bill, i) => (
+              <BillCard key={`${bill.id}x${i}`} bill={bill} menu={menu} />
             ))}
           </BillsList>
 
-          {totalLoaded < bills.length && (
-            <div ref={observerTarget}>
+          {/* L'élément cible de l'observer s'affiche uniquement s'il reste des éléments à charger */}
+          {hasMore && (
+            <div ref={observerTarget} style={{ minHeight: "30px", margin: "10px 0" }}>
               {isLoading && <LoadingIndicator>Chargement...</LoadingIndicator>}
             </div>
           )}

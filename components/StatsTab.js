@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { API } from "../lib/data";
 import styled from "styled-components";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import api from "../lib/axios";
 
 const StatsContainer = styled.div`
   display: flex;
@@ -164,31 +165,6 @@ const ChartWrapper = styled.div`
   gap: 12px;
 `;
 
-const ChartLegend = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-`;
-
-const LegendBadge = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: rgba(251, 248, 243, 0.7) !important;
-  font-size: 13px;
-  font-family: var(--font-manrope), "Manrope", sans-serif;
-`;
-
-const Dot = styled.span`
-  width: 10px;
-  height: 10px;
-  display: inline-block;
-  border-radius: 999px;
-  background: ${(props) => props.$color};
-`;
-
 const ClientsList = styled.div`
   display: flex;
   flex-direction: column;
@@ -238,16 +214,6 @@ const LoadingMessage = styled.div`
   color: rgba(251, 248, 243, 0.65) !important;
   font-family: var(--font-manrope), "Manrope", sans-serif;
   font-size: 14px;
-`;
-
-const ErrorMessage = styled.div`
-  padding: 16px;
-  border-radius: 12px;
-  background: rgba(178, 59, 59, 0.12);
-  color: #ed96a6 !important;
-  font-family: var(--font-manrope), "Manrope", sans-serif;
-  font-size: 14px;
-  border: 1px solid rgba(178, 59, 59, 0.3);
 `;
 
 const formatAmount = (value) =>
@@ -379,14 +345,36 @@ function buildChartData(period, bills) {
   }));
 }
 
-export default function StatsTab({ bills }) {
+export default function StatsTab() {
   const [period, setPeriod] = useState("month");
   const [chartMode, setChartMode] = useState("revenue");
   const [rankingMode, setRankingMode] = useState("recurrence");
 
+  const [bills, setBills] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Appel serveur pour récupérer les données de la période sélectionnée
+  const fetchStats = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.get(`${API}/api/bills/stats?period=${period}`, {
+        withCredentials: true,
+      });
+      setBills(response.data.bills || []);
+    } catch (err) {
+      console.error("Erreur récupération stats serveur:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [period]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  // Filtrage local additionnel de sécurité (reprend ta logique exacte)
   const filteredBills = useMemo(() => {
     if (!Array.isArray(bills)) return [];
-
     const [start, end] = getPeriodRange(period);
 
     return bills.filter((bill) => {
@@ -395,6 +383,7 @@ export default function StatsTab({ bills }) {
     });
   }, [bills, period]);
 
+  // Calculs financiers globaux fait en front
   const stats = useMemo(() => {
     return filteredBills.reduce(
       (acc, bill) => {
@@ -423,12 +412,14 @@ export default function StatsTab({ bills }) {
         countBills: 0,
         cashRevenue: 0,
         cardRevenue: 0,
-      },
+      }
     );
   }, [filteredBills]);
 
+  // Construction de l'axe continu avec trous bouchés à 0
   const chartData = useMemo(() => buildChartData(period, filteredBills), [period, filteredBills]);
 
+  // Classement dynamique des clients
   const computedTopClients = useMemo(() => {
     const merged = new Map();
 
@@ -457,7 +448,6 @@ export default function StatsTab({ bills }) {
       .slice(0, 5);
   }, [filteredBills, rankingMode]);
 
-  // Configuration dynamique des couleurs du graphique Recharts
   const chartColor = chartMode === "revenue" ? "#ed64a6" : "#f1b36a";
   const dataKey = chartMode === "revenue" ? "revenue" : "unpaid";
 
@@ -489,12 +479,16 @@ export default function StatsTab({ bills }) {
         </HeaderMeta>
       </Header>
 
-      <SummaryGrid>
-        <SummaryCard>
-          <CardLabel>Revenu total</CardLabel>
-          <CardValue>{formatAmount(stats.totalRevenue)}</CardValue>
-          <CardHint>{periodLabels[period]} • {stats.countBills || 0} factures</CardHint>
-        </SummaryCard>
+      {isLoading ? (
+        <LoadingMessage>Calcul des indicateurs en cours...</LoadingMessage>
+      ) : (
+        <>
+          <SummaryGrid>
+            <SummaryCard>
+              <CardLabel>Revenu total</CardLabel>
+              <CardValue>{formatAmount(stats.totalRevenue)}</CardValue>
+              <CardHint>{periodLabels[period]} • {stats.countBills || 0} factures</CardHint>
+            </SummaryCard>
             <SummaryCard>
               <CardLabel>Sommes dues</CardLabel>
               <CardValue>{formatAmount(stats.totalUnpaid)}</CardValue>
@@ -588,6 +582,8 @@ export default function StatsTab({ bills }) {
               )}
             </Panel>
           </Grid>
+        </>
+      )}
     </StatsContainer>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import styled from "styled-components";
 import api from "../lib/axios"; // Importer axios pour les requêtes HTTP
 
@@ -60,13 +60,13 @@ export default function HomePage() {
   const [lastMovedId, setLastMovedId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   });
   const [alert, setAlert] = useState({ type: "", message: "" });
 
   const [currentPage, setCurrentPage] = useState("appointments");
 
-  const [serverModalError, setServerModalError] = useState('');
+  const [serverModalError, setServerModalError] = useState("");
 
   const [filters, setFilters] = useState({
     statuts: [],
@@ -80,6 +80,11 @@ export default function HomePage() {
   };
 
   const filteredAppts = getFiltered(appts, state);
+
+  const currentMonthStr = useMemo(() => {
+    if (!selectedDate) return "";
+    return selectedDate.substring(0, 7); // Extrait "YYYY-MM" depuis "YYYY-MM-DD"
+  }, [selectedDate]);
 
   useEffect(() => {
     if (lastMovedId !== null) {
@@ -95,11 +100,27 @@ export default function HomePage() {
   };
 
   useEffect(() => {
+    if (!currentMonthStr) return;
     const fetchAppointments = async () => {
       try {
-        const response = await api.get(`${API_URL}/get-all-appointements`, {
-          withCredentials: true,
-        });
+        const [year, month] = currentMonthStr.split("-").map(Number);
+
+        // Premier jour du mois à 00:00:00
+        const startDate = new Date(
+          Date.UTC(year, month - 1, 1, 0, 0, 0, 0),
+        ).toISOString();
+
+        // Dernier jour du mois à 23:59:59
+        const endDate = new Date(
+          Date.UTC(year, month, 0, 23, 59, 59, 999),
+        ).toISOString();
+
+        const response = await api.get(
+          `${API_URL}/get-all-appointements?startDate=${startDate}&endDate=${endDate}`,
+          {
+            withCredentials: true,
+          },
+        );
 
         const mappedData = response.data.appointements.map((appt) => ({
           ...appt,
@@ -125,6 +146,9 @@ export default function HomePage() {
         );
       }
     };
+    fetchAppointments();
+  },[currentMonthStr]);
+  useEffect(() => {
     const fetchPractitioners = async () => {
       try {
         const response = await api.get(
@@ -148,31 +172,12 @@ export default function HomePage() {
         );
       }
     };
-    const fetchBills = async () => {
-      try {
-        const response = await api.get(
-          `${API}/api/bills/get-bills`,
-          { withCredentials: true },
-        );
-        const mappedData = response.data.bills.map((bill) => ({
-          ...bill,
-          id: bill._id,
-        }));
-        setBills(mappedData);
-      } catch (err) {
-        console.error("Erreur lors de la récupération des factures :", err);
-        showAlert(
-          "error",
-          err?.response?.data?.error || "Impossible de charger les factures.",
-        );
-      }
-    };
+
     const fetchMenu = async () => {
       try {
-        const response = await api.get(
-          `${API}/api/menu/get-menu`,
-          { withCredentials: true },
-        );
+        const response = await api.get(`${API}/api/menu/get-menu`, {
+          withCredentials: true,
+        });
         const mappedData = response.data.menu.map((m) => ({
           ...m,
           id: m._id,
@@ -188,9 +193,7 @@ export default function HomePage() {
       }
     };
 
-    fetchAppointments();
     fetchPractitioners();
-    fetchBills();
     fetchMenu();
   }, []);
 
@@ -266,7 +269,7 @@ export default function HomePage() {
         // Le return ici est obligatoire pour mettre à jour l'état React
         return prevPrcts.map((p) => {
           // Comparaison stricte et saine avec le _id de MongoDB
-          if ((p._id||p.id) === (practitioner._id||practitioner.id)) {
+          if ((p._id || p.id) === (practitioner._id || practitioner.id)) {
             return practitioner;
           }
           return p;
@@ -318,7 +321,6 @@ export default function HomePage() {
       socket.disconnect();
     };
   }, []);
-
 
   // 3. ACTIONS UTILISATEUR (Envois au Backend)
   const handleApptChange = async (id, field, value) => {
@@ -407,11 +409,13 @@ export default function HomePage() {
       setAppts((prev) => [...prev, createdAppt]);
       setLastMovedId(createdAppt.id);
       setModalOpen(false);
-      setServerModalError('');
+      setServerModalError("");
       showAlert("success", "Rendez-vous créé avec succès.");
     } catch (error) {
       console.error("Erreur lors de la création du rendez-vous :", error);
-      const errorMsg = error?.response?.data?.error || "Une erreur est survenue pendant la création.";
+      const errorMsg =
+        error?.response?.data?.error ||
+        "Une erreur est survenue pendant la création.";
       setServerModalError(errorMsg);
       showAlert("error", errorMsg);
     }
@@ -452,7 +456,6 @@ export default function HomePage() {
       <MainContent className={`${category}Content`} $category={category}>
         {currentPage === "management" ? (
           <ManagementPage
-            bills={bills}
             menu={menu}
             practitioners={prcts}
             onBillsChange={setBills}
@@ -502,7 +505,7 @@ export default function HomePage() {
         activeCategory={category}
         onClose={() => {
           setModalOpen(false);
-          setServerModalError('');
+          setServerModalError("");
         }}
         onSave={handleCreateAppt}
         practitioners={prcts}
