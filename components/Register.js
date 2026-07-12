@@ -149,15 +149,28 @@ export default function Register() {
 
     setLoading(true);
 
-    const res = await loginUser(username, password);
-    if(!res.ok) {
-
-      setError(res.error || "Erreur de connexion.");
+    try {
+      const res = await loginUser(username, password);
+      console.log(res);
+      if (res.error) {
+        setError(res.error);
+        setLoading(false);
+        return;
+      }
       setLoading(false);
-      return;
+      console.log("le token: ",res.token)
+      localStorage.setItem("pink_studio_token", res.token);
+      window.location.href = "/";
+    } catch (err) {
+      console.error("Détail de l'erreur de connexion :", err);
+
+      // 2. Récupération sécurisée du message d'erreur
+      const errorMessage =
+        err instanceof Error ? err.message : "Erreur de connexion.";
+
+      setError(errorMessage);
+      setLoading(false);
     }
-    setLoading(false);
-    window.location.href = '/';
   };
 
   return (
