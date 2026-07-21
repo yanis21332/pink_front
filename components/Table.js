@@ -355,9 +355,6 @@ export default function Table({
     }
   };
 
-  useEffect(() => {
-    console.log("la category est : " + category);
-  }, [category]);
 
   if (!appts || appts.length === 0) {
     return (

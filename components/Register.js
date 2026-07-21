@@ -151,14 +151,12 @@ export default function Register() {
 
     try {
       const res = await loginUser(username, password);
-      console.log(res);
       if (res.error) {
         setError(res.error);
         setLoading(false);
         return;
       }
       setLoading(false);
-      console.log("le token: ",res.token)
       localStorage.setItem("pink_studio_token", res.token);
       window.location.href = "/";
     } catch (err) {

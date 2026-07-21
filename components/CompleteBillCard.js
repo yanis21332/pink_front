@@ -427,9 +427,6 @@ export default function CompleteBillCard({ bill, menu, onDeleteSuccess }) {
       </TicketFooter>
     </TicketContainer>
   ));
-  useEffect(() => {
-    console.log(bill);
-  }, [bill]);
   return (
     <CardContainer>
       <CardHeader>
