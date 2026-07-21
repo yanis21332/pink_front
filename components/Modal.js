@@ -286,7 +286,6 @@ export default function Modal({
   };
   const normalizeDate = (value) => {
     if (!value) return null;
-    // Si c'est déjà au format YYYY-MM-DD, le retourner directement
     if (typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}$/)) {
       return value;
     }
@@ -338,9 +337,6 @@ export default function Modal({
   useEffect(() => {
     const category =
       activeCategory !== "all" ? activeCategory : defaultData.service;
-    const available = (practitioners || []).filter(
-      (pr) => Array.isArray(pr.domain) && pr.domain.includes(category),
-    );
 
     setFormData((prev) => {
       if (initialData) {
@@ -351,7 +347,7 @@ export default function Modal({
         ...defaultData,
         service: category,
         exactDate: normalizeDate(prev.exactDate) || defaultData.exactDate,
-        practitioner: prev.practitioner ||  "",
+        practitioner: prev.practitioner || "",
       };
     });
     setModalError("");
@@ -365,10 +361,14 @@ export default function Modal({
   }, [serverError]);
 
   const handleChange = (field, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setFormData((prev) => {
+      const updated = { ...prev, [field]: value };
+      // Si le statut repasse à "impayé", on réinitialise le montant (price)
+      if (field === "statut" && value === "impayé") {
+        updated.price = "";
+      }
+      return updated;
+    });
   };
 
   const handleSave = () => {
@@ -382,8 +382,6 @@ export default function Modal({
       return;
     }
 
-    // 1. Extraire et isoler les heures au format brut ("9:00") pour les calculs
-    // Si c'est déjà un ISO complet, on extrait juste la partie heure "HH:MM"
     const rawStart = estFormatHeure(formData.startTime)
       ? formData.startTime
       : formData.startTime.split("T")[1]?.substring(0, 5) || "";
@@ -392,7 +390,6 @@ export default function Modal({
       ? formData.endTime
       : formData.endTime.split("T")[1]?.substring(0, 5) || "";
 
-    // 2. Calcul des minutes sur les formats "HH:MM"
     const startMinutes = toMinutes(rawStart);
     const endMinutes = toMinutes(rawEnd);
 
@@ -412,7 +409,6 @@ export default function Modal({
       return;
     }
 
-    // Validation: date antérieure à aujourd'hui
     const today = getTodayDate();
     if (appointmentDate < today) {
       setModalError(
@@ -421,7 +417,6 @@ export default function Modal({
       return;
     }
 
-    // Validation: heure antérieure si c'est aujourd'hui
     if (appointmentDate === today) {
       const currentTime = getCurrentTimeInMinutes();
       if (startMinutes < currentTime) {
@@ -432,26 +427,62 @@ export default function Modal({
       }
     }
 
-    // Validation des conflits
-    const conflict = (existingAppointments || []).some((appt) => {
-      if (!appt?.practitioner) return false;
-      if (initialData && appt.id === initialData.id) return false;
-      if (appt.practitioner !== formData.practitioner) return false;
-      const apptDate = getAppointmentDate(appt);
-      if (!apptDate || apptDate !== appointmentDate) return false;
-      const apptRange = getAppointmentRange(appt);
-      if (!apptRange) return false;
-      return startMinutes < apptRange.end && endMinutes > apptRange.start;
-    });
+    const concurrentAppointments = (existingAppointments || []).filter(
+      (appt) => {
+        if (!appt?.practitioner) return false;
+        if (initialData?.id && appt.id === initialData.id) return false;
+        if (appt.practitioner !== formData.practitioner) return false;
+
+        const apptDate = getAppointmentDate(appt);
+        if (!apptDate || apptDate !== appointmentDate) return false;
+
+        const apptRange = getAppointmentRange(appt);
+        if (!apptRange) return false;
+
+        return startMinutes < apptRange.end && endMinutes > apptRange.start;
+      },
+    );
+
+    const isNewAppointmentHammam = formData.service === "hammam";
+    let conflict = false;
+
+    if (isNewAppointmentHammam) {
+      const hammamCount = concurrentAppointments.filter(
+        (appt) => appt.service === "hammam",
+      ).length;
+
+      if (hammamCount >= 6) {
+        conflict = true;
+      }
+
+      const hasOtherService = concurrentAppointments.some(
+        (appt) => appt.service !== "hammam",
+      );
+      if (hasOtherService) {
+        conflict = true;
+      }
+    } else {
+      if (concurrentAppointments.length > 0) {
+        conflict = true;
+      }
+    }
 
     if (conflict) {
-      setModalError(
-        `La praticienne ${practitioners.find((pr) => pr.id === formData.practitioner)?.fullName} est déjà occupée sur cette plage horaire.`,
+      const currentPractitioner = practitioners.find(
+        (pr) => pr.id === formData.practitioner,
       );
+      const nameToDisplay = currentPractitioner
+        ? currentPractitioner.fullName
+        : "Ce praticien";
+
+      const errorMessage = isNewAppointmentHammam
+        ? `La praticienne ${nameToDisplay} a déjà atteint la capacité maximale de 6 rendez-vous simultanés pour le Hammam sur cette plage.`
+        : `La praticienne ${nameToDisplay} est déjà occupée ou gère un groupe sur cette plage horaire.`;
+
+      setModalError(errorMessage);
       return;
     }
 
-    // 3. Préparer l'objet final proprement formaté sans polluer le state de manière asynchrone
     const finalStartTime = estFormatHeure(formData.startTime)
       ? `${formData.exactDate}T${formData.startTime}:00.000Z`
       : formData.startTime;
@@ -468,10 +499,8 @@ export default function Modal({
 
     setModalError("");
 
-    // Envoi des données formatées
     onSave(finalData);
 
-    // Réinitialisation du formulaire
     setFormData({
       ...defaultData,
       service: activeCategory !== "all" ? activeCategory : defaultData.service,
@@ -500,86 +529,6 @@ export default function Modal({
     return "09:00";
   };
 
-  const generateCalendarDays = () => {
-    const year = calendarMonth.getFullYear();
-    const month = calendarMonth.getMonth();
-
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const prevLastDay = new Date(year, month, 0);
-
-    const firstDayOfWeek = firstDay.getDay();
-    const lastDateOfMonth = lastDay.getDate();
-    const lastDateOfPrevMonth = prevLastDay.getDate();
-
-    const days = [];
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-
-    // Days from previous month
-    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
-      const d = new Date(year, month - 1, lastDateOfPrevMonth - i);
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      days.push({
-        date: dateStr,
-        isCurrentMonth: false,
-        day: lastDateOfPrevMonth - i,
-      });
-    }
-
-    // Days of current month
-    for (let i = 1; i <= lastDateOfMonth; i++) {
-      const d = new Date(year, month, i);
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      days.push({
-        date: dateStr,
-        isCurrentMonth: true,
-        day: i,
-        isToday: dateStr === todayStr,
-        isPast: dateStr < todayStr,
-      });
-    }
-
-    // Days from next month
-    const remainingDays = 42 - days.length;
-    for (let i = 1; i <= remainingDays; i++) {
-      const d = new Date(year, month + 1, i);
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      days.push({
-        date: dateStr,
-        isCurrentMonth: false,
-        day: i,
-      });
-    }
-
-    return days;
-  };
-
-  const handleCalendarDateSelect = (dateStr) => {
-    // Convertir la chaîne au format local pour éviter les problèmes de fuseau horaire
-    const [year, month, day] = dateStr.split("-").map(Number);
-    const selected = new Date(year, month - 1, day);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (selected < today) {
-      setModalError(
-        "Impossible de sélectionner une date antérieure à aujourd'hui.",
-      );
-      return;
-    }
-
-    handleChange("exactDate", dateStr);
-    handleChange(
-      "startTime",
-      `${dateStr}T${formatTimeToInput(formData.startTime)}:00.000Z`,
-    );
-    handleChange(
-      "endTime",
-      `${dateStr}T${formatTimeToInput(formData.endTime)}:00.000Z`,
-    );
-    setShowCalendar(false);
-  };
   return (
     <Overlay
       id="overlay"
@@ -622,7 +571,6 @@ export default function Modal({
             name="practitioner"
             id="practitionerSelect"
             onChange={(e) => {
-            
               handleChange("practitioner", e.target.value);
             }}
           >
@@ -698,8 +646,8 @@ export default function Modal({
             <div>
               <label>Statut</label>
               <select
-                value={formData.statut}
-                onChange={(e) => handleChange("statut", e.target.value)}
+                value={formData.status}
+                onChange={(e) => handleChange("status", e.target.value)}
               >
                 <option value="payé">Payé</option>
                 <option value="impayé">Impayé</option>
@@ -708,6 +656,22 @@ export default function Modal({
             </div>
           </MoneyRow>
         </FormGroup>
+
+        {/* AFFICHAGE CONDITIONNEL : Champ prix/acompte si statut est "payé" ou "acompte" */}
+        {(formData.status === "payé" || formData.status === "acompte") && (
+          <FormGroup>
+            <label>
+              {formData.status === "acompte" ? "Montant de l'acompte (DA)" : "Montant payé (DA)"}
+            </label>
+            <input
+              type="number"
+              min="0"
+              placeholder="Ex: 2000"
+              value={formData.price}
+              onChange={(e) => handleChange("price", e.target.value)}
+            />
+          </FormGroup>
+        )}
 
         <FormGroup>
           <label>Commentaire</label>

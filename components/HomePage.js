@@ -318,6 +318,12 @@ export default function HomePage() {
       socket.off("prct_created");
       socket.off("prct_updated");
       socket.off("prct_deleted");
+      socket.off("category_created");
+      socket.off("category_changed");
+      socket.off("category_deleted");
+      socket.off("service_deleted");
+      socket.off("bill_created");
+      socket.off("bill_deleted");
       socket.disconnect();
     };
   }, []);
@@ -461,6 +467,7 @@ export default function HomePage() {
             onBillsChange={setBills}
             onPractitionersChange={setPrcts}
             onMenuChange={setMenu}
+            onHamburgerClick={() => setSidebarOpen(true)}
           />
         ) : (
           <>

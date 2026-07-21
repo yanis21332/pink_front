@@ -238,7 +238,8 @@ const dayLabels = Array.from({ length: 24 }, (_, index) => `${index.toString().p
 const weekLabels = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Aoû", "Sep", "Oct", "Nov", "Déc"];
 
-function parseBillDate(value) {
+function parseCustomDate(value) {
+  if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
@@ -316,13 +317,15 @@ function getChartBucket(date, period) {
   }
 }
 
-function buildChartData(period, bills) {
+// Construction intégrant bills ET spents dans l'axe chronologique
+function buildChartData(period, bills, spents) {
   const labels = getAxisLabels(period);
-  const buckets = labels.map(() => ({ revenue: 0, unpaid: 0 }));
+  const buckets = labels.map(() => ({ revenue: 0, unpaid: 0, spents: 0 }));
   const [start, end] = getPeriodRange(period);
 
+  // Traitement des factures
   bills.forEach((bill) => {
-    const date = parseBillDate(bill.createdAt);
+    const date = parseCustomDate(bill.createdAt);
     if (!date || date < start || date > end) return;
 
     const bucketKey = getChartBucket(date, period);
@@ -338,22 +341,36 @@ function buildChartData(period, bills) {
     }
   });
 
+  // Traitement des dépenses (via spentDate)
+  spents.forEach((spent) => {
+    const date = parseCustomDate(spent.spentDate);
+    if (!date || date < start || date > end) return;
+
+    const bucketKey = getChartBucket(date, period);
+    if (bucketKey < 0 || bucketKey >= buckets.length) return;
+
+    const amount = Number(spent.value || 0);
+    buckets[bucketKey].spents += amount;
+  });
+
   return labels.map((name, index) => ({
     name,
     revenue: buckets[index].revenue,
     unpaid: buckets[index].unpaid,
+    spents: buckets[index].spents,
   }));
 }
 
 export default function StatsTab() {
   const [period, setPeriod] = useState("month");
-  const [chartMode, setChartMode] = useState("revenue");
+  const [chartMode, setChartMode] = useState("revenue"); // "revenue" | "unpaid" | "spents"
   const [rankingMode, setRankingMode] = useState("recurrence");
 
   const [bills, setBills] = useState([]);
+  const [spents, setSpents] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Appel serveur pour récupérer les données de la période sélectionnée
+  // Récupération globale bills + spents
   const fetchStats = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -361,6 +378,7 @@ export default function StatsTab() {
         withCredentials: true,
       });
       setBills(response.data.bills || []);
+      setSpents(response.data.spents || []);
     } catch (err) {
       console.error("Erreur récupération stats serveur:", err);
     } finally {
@@ -372,20 +390,31 @@ export default function StatsTab() {
     fetchStats();
   }, [fetchStats]);
 
-  // Filtrage local additionnel de sécurité (reprend ta logique exacte)
+  // Filtrage local sécurisé pour les factures
   const filteredBills = useMemo(() => {
     if (!Array.isArray(bills)) return [];
     const [start, end] = getPeriodRange(period);
 
     return bills.filter((bill) => {
-      const date = parseBillDate(bill.createdAt);
+      const date = parseCustomDate(bill.createdAt);
       return date && date >= start && date <= end;
     });
   }, [bills, period]);
 
-  // Calculs financiers globaux fait en front
+  // Filtrage local sécurisé pour les dépenses (sur spentDate)
+  const filteredSpents = useMemo(() => {
+    if (!Array.isArray(spents)) return [];
+    const [start, end] = getPeriodRange(period);
+
+    return spents.filter((spent) => {
+      const date = parseCustomDate(spent.spentDate);
+      return date && date >= start && date <= end;
+    });
+  }, [spents, period]);
+
+  // Calculs financiers consolidés (Encaissements vs Dépenses vs Solde)
   const stats = useMemo(() => {
-    return filteredBills.reduce(
+    const billStats = filteredBills.reduce(
       (acc, bill) => {
         const amount = Number(bill.totalAmount || 0);
         const isPaid = bill.isPaid === true || bill.status === "paid";
@@ -414,12 +443,24 @@ export default function StatsTab() {
         cardRevenue: 0,
       }
     );
-  }, [filteredBills]);
 
-  // Construction de l'axe continu avec trous bouchés à 0
-  const chartData = useMemo(() => buildChartData(period, filteredBills), [period, filteredBills]);
+    const totalSpents = filteredSpents.reduce((acc, spent) => {
+      return acc + Number(spent.value || 0);
+    }, 0);
 
-  // Classement dynamique des clients
+    return {
+      ...billStats,
+      totalSpents,
+      netProfit: billStats.totalRevenue - totalSpents,
+      countSpents: filteredSpents.length,
+    };
+  }, [filteredBills, filteredSpents]);
+
+  const chartData = useMemo(
+    () => buildChartData(period, filteredBills, filteredSpents),
+    [period, filteredBills, filteredSpents]
+  );
+
   const computedTopClients = useMemo(() => {
     const merged = new Map();
 
@@ -448,8 +489,19 @@ export default function StatsTab() {
       .slice(0, 5);
   }, [filteredBills, rankingMode]);
 
-  const chartColor = chartMode === "revenue" ? "#ed64a6" : "#f1b36a";
-  const dataKey = chartMode === "revenue" ? "revenue" : "unpaid";
+  // Couleurs dynamiques selon le mode d'affichage choisi
+  const chartConfig = useMemo(() => {
+    switch (chartMode) {
+      case "revenue":
+        return { color: "#ed64a6", key: "revenue", label: "Revenu" };
+      case "unpaid":
+        return { color: "#f1b36a", key: "unpaid", label: "Somme due" };
+      case "spents":
+        return { color: "#e53e3e", key: "spents", label: "Dépense" };
+      default:
+        return { color: "#ed64a6", key: "revenue", label: "Revenu" };
+    }
+  }, [chartMode]);
 
   return (
     <StatsContainer>
@@ -462,6 +514,12 @@ export default function StatsTab() {
               onClick={() => setChartMode("revenue")}
             >
               Revenus
+            </ToggleButton>
+            <ToggleButton
+              $active={chartMode === "spents"}
+              onClick={() => setChartMode("spents")}
+            >
+              Dépenses
             </ToggleButton>
             <ToggleButton
               $active={chartMode === "unpaid"}
@@ -490,44 +548,55 @@ export default function StatsTab() {
               <CardHint>{periodLabels[period]} • {stats.countBills || 0} factures</CardHint>
             </SummaryCard>
             <SummaryCard>
+              <CardLabel>Dépenses totales</CardLabel>
+              <CardValue style={{ color: "#e53e3e" }}>{formatAmount(stats.totalSpents)}</CardValue>
+              <CardHint>{stats.countSpents || 0} sorties enregistrées</CardHint>
+            </SummaryCard>
+            <SummaryCard>
+              <CardLabel>Bénéfice Net (Marge)</CardLabel>
+              <CardValue style={{ color: stats.netProfit >= 0 ? "#38a169" : "#e53e3e" }}>
+                {formatAmount(stats.netProfit)}
+              </CardValue>
+              <CardHint>Chiffre d'affaires - Dépenses</CardHint>
+            </SummaryCard>
+            <SummaryCard>
               <CardLabel>Sommes dues</CardLabel>
               <CardValue>{formatAmount(stats.totalUnpaid)}</CardValue>
               <CardHint>À suivre rapidement</CardHint>
-            </SummaryCard>
-            <SummaryCard>
-              <CardLabel>Espèces</CardLabel>
-              <CardValue>{formatAmount(stats.cashRevenue)}</CardValue>
-              <CardHint>Revenus encaissés en cash</CardHint>
-            </SummaryCard>
-            <SummaryCard>
-              <CardLabel>Carte</CardLabel>
-              <CardValue>{formatAmount(stats.cardRevenue)}</CardValue>
-              <CardHint>Revenus par carte</CardHint>
             </SummaryCard>
           </SummaryGrid>
 
           <Grid>
             <Panel>
-              <PanelTitle>Évolution {chartMode === "revenue" ? "des revenus" : "des sommes dues"}</PanelTitle>
+              <PanelTitle>
+                Évolution {chartMode === "revenue" ? "des revenus" : chartMode === "spents" ? "des dépenses" : "des sommes dues"}
+              </PanelTitle>
               <ChartWrapper style={{ height: 250, width: "100%", marginTop: 20 }}>
                 {chartData.length ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={chartColor} stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor={chartColor} stopOpacity={0.0}/>
+                          <stop offset="5%" stopColor={chartConfig.color} stopOpacity={0.4}/>
+                          <stop offset="95%" stopColor={chartConfig.color} stopOpacity={0.0}/>
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(251,248,243,0.08)" />
                       <XAxis dataKey="name" stroke="rgba(251,248,243,0.4)" fontSize={12} />
                       <YAxis stroke="rgba(251,248,243,0.4)" fontSize={12} tickFormatter={formatYAxisValue} />
                       <Tooltip 
-                        formatter={(value) => [formatAmount(value), chartMode === "revenue" ? "Revenu" : "Somme due"]}
+                        formatter={(value) => [formatAmount(value), chartConfig.label]}
                         contentStyle={{ backgroundColor: "#1a202c", borderColor: "rgba(251,248,243,0.16)", borderRadius: 8 }}
                         labelStyle={{ color: "rgba(251,248,243,0.6)" }}
                       />
-                      <Area type="monotone" dataKey={dataKey} stroke={chartColor} strokeWidth={3} fillOpacity={1} fill="url(#colorUv)" />
+                      <Area 
+                        type="monotone" 
+                        dataKey={chartConfig.key} 
+                        stroke={chartConfig.color} 
+                        strokeWidth={3} 
+                        fillOpacity={1} 
+                        fill="url(#colorUv)" 
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (

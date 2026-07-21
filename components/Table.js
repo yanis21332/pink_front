@@ -1,10 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styled from "styled-components";
 import Modal from "./Modal";
 import { statutLabel, recurringNames } from "../lib/utils";
 import { API } from "../lib/data";
+import api from "../lib/axios";
+
+const CATEGORY_THEMES = {
+  hammam: { headerBg: "#ffedd1", bodyBg: "#fffbf6", textDark: true },
+  coloration: { headerBg: "#111", bodyBg: "#141211", textDark: false },
+  mariees: { headerBg: "#f6f0ff", bodyBg: "#fbf8ff", textDark: true },
+  esthetique: { headerBg: "#fedbdb", bodyBg: "#fff5f5", textDark: true },
+  onglerie: { headerBg: "#581818", bodyBg: "#4f1a1a", textDark: false },
+  default: { headerBg: "#ffffff", bodyBg: "#ffffff", textDark: true },
+};
+
+const getTheme = (cat) => CATEGORY_THEMES[cat] || CATEGORY_THEMES.default;
 
 const TableWrap = styled.div`
   border-radius: 16px;
@@ -13,29 +25,28 @@ const TableWrap = styled.div`
   padding: 6px;
 `;
 
+const ScrollContainer = styled.div`
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+`;
+
+const InnerTimelineWrapper = styled.div`
+  min-width: 800px;
+  display: flex;
+  flex-direction: column;
+`;
+
 const TimelineHeader = styled.div`
   display: flex;
   justify-content: space-between;
   padding: 12px 16px;
-  overflow-x: auto;
-  background: ${(props) =>
-    props.$category === "hammam"
-      ? "#ffefdd"
-      : props.$category === "coloration"
-        ? "#111"
-        : props.$category === "mariees"
-          ? "#f6f0ff"
-          : props.$category === "esthetique"
-            ? "#fff0f0"
-            : props.$category === "onglerie"
-              ? "#5a1a1a"
-              : "#fff"};
+  background: ${(props) => getTheme(props.$category).headerBg};
   border-bottom: 1px solid var(--line);
 `;
 
 const TimeSlot = styled.div`
   min-width: 80px;
-
   font-family: var(--font-ibm-mono), "IBM Plex Mono", monospace;
   font-size: 13px;
   color: var(--ink-dim);
@@ -44,18 +55,7 @@ const TimeSlot = styled.div`
 
 const TableBody = styled.div`
   display: block;
-  background: ${(props) =>
-    props.$category === "hammam"
-      ? "#fffbf6"
-      : props.$category === "coloration"
-        ? "#141211"
-        : props.$category === "mariees"
-          ? "#fbf8ff"
-          : props.$category === "esthetique"
-            ? "#fff5f5"
-            : props.$category === "onglerie"
-              ? "#4f1a1a"
-              : "#fff"};
+  background: ${(props) => getTheme(props.$category).bodyBg};
   padding: 12px 16px;
 `;
 
@@ -91,11 +91,72 @@ const ApptCard = styled.button`
 const ApptTitle = styled.div`
   font-weight: 700;
   font-size: 14px;
+  padding-right: 18px;
 `;
 
 const ApptMeta = styled.div`
   font-size: 12px;
   opacity: 0.9;
+`;
+
+/* --- NOUVEAU : Bouton croix de suppression --- */
+const DeleteBtn = styled.span`
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.4);
+  padding: 4px;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
+
+  &:hover {
+    color: #e53e3e;
+    background: rgba(229, 62, 62, 0.12);
+  }
+`;
+
+/* --- NOUVEAU : Overlay & Modal de confirmation de suppression --- */
+const ConfirmOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+`;
+
+const ConfirmBox = styled.div`
+  background: var(--paper, #fff);
+  padding: 24px;
+  border-radius: 16px;
+  max-width: 380px;
+  width: 90%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--ink, #111);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.92rem;
+    color: var(--ink-dim, #666);
+  }
+`;
+
+const ConfirmActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 `;
 
 const EmptyState = styled.div`
@@ -121,18 +182,7 @@ const TableHeaderBar = styled.div`
   align-items: center;
   gap: 14px;
   padding: 18px 20px;
-  background: ${(props) =>
-    props.$category === "hammam"
-      ? "#ffedd1"
-      : props.$category === "coloration"
-        ? "#111"
-        : props.$category === "mariees"
-          ? "#f6f0ff"
-          : props.$category === "esthetique"
-            ? "#fff0f0"
-            : props.$category === "onglerie"
-              ? "#581818"
-              : "#111"};
+  background: ${(props) => getTheme(props.$category).headerBg};
   border-bottom: 1px solid var(--line);
 `;
 
@@ -146,18 +196,14 @@ const HeaderTitle = styled.div`
   font-size: 1rem;
   font-weight: 700;
   color: ${(props) =>
-    props.$category === "coloration" || props.$category === "onglerie"
-      ? "var(--blanc)"
-      : "var(--ink)"};
+    getTheme(props.$category).textDark ? "var(--ink)" : "var(--blanc)"};
 `;
 
 const HeaderMeta = styled.div`
   font-family: var(--font-manrope), "Manrope", sans-serif;
   font-size: 0.92rem;
   color: ${(props) =>
-    props.$category === "coloration" || props.$category === "onglerie"
-      ? "rgba(255,255,255,0.82)"
-      : "var(--ink-dim)"};
+    getTheme(props.$category).textDark ? "var(--ink)" : "var(--blanc)"};
 `;
 
 const DateNav = styled.div`
@@ -228,7 +274,11 @@ export default function Table({
   const recurring = recurringNames(appts);
   const [activeAppt, setActiveAppt] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [serverModalError, setServerModalError] = useState('');
+  const [serverModalError, setServerModalError] = useState("");
+
+  /* --- NOUVEAU : État pour la suppression --- */
+  const [deletingAppt, setDeletingAppt] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const parseTime = (t) => {
     if (!t) return null;
@@ -250,7 +300,7 @@ export default function Table({
   const totalAppts = appts?.length || 0;
 
   const formattedDate = selectedDate
-    ? new Date(selectedDate + 'T00:00:00').toLocaleDateString("fr-FR", {
+    ? new Date(selectedDate + "T00:00:00").toLocaleDateString("fr-FR", {
         weekday: "long",
         day: "numeric",
         month: "long",
@@ -258,31 +308,64 @@ export default function Table({
     : "";
 
   const changeDate = (days) => {
-    const [year, month, day] = (selectedDate || getTodayDate()).split('-').map(Number);
+    const [year, month, day] = (selectedDate || getTodayDate())
+      .split("-")
+      .map(Number);
     const current = new Date(year, month - 1, day);
     current.setDate(current.getDate() + days);
-    const newDateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+    const newDateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}-${String(current.getDate()).padStart(2, "0")}`;
     onSelectedDateChange(newDateStr);
   };
 
   const getTodayDate = () => {
     const today = new Date();
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   };
 
   const goToday = () => {
     const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     onSelectedDateChange(todayStr);
   };
+
+  const handleDeleteConfirm = async () => {
+    if (onApptDelete) {
+      onApptDelete(deletingAppt.id)
+      setIsDeleting(false);
+      setDeletingAppt(null);
+      return;
+    };
+    if (!deletingAppt) return;
+    if (isDeleting) return;
+    setIsDeleting(true);
+    try {
+
+      const res = await api.delete(
+        `${API}/api/appointements/delete-appointement/${deletingAppt.id}`,
+        {
+          withCredentials: true,
+        }
+      );
+      
+    } catch (err) {
+      console.error("Erreur réseau lors de la suppression :", err);
+    } finally {
+      setIsDeleting(false);
+      setDeletingAppt(null);
+    }
+  };
+
+  useEffect(() => {
+    console.log("la category est : " + category);
+  }, [category]);
 
   if (!appts || appts.length === 0) {
     return (
       <TableWrap>
-        <TableHeaderBar>
+        <TableHeaderBar $category={category}>
           <HeaderInfo>
-            <HeaderTitle>Planning</HeaderTitle>
-            <HeaderMeta>{formattedDate}</HeaderMeta>
+            <HeaderTitle $category={category}>Planning</HeaderTitle>
+            <HeaderMeta $category={category}>{formattedDate}</HeaderMeta>
           </HeaderInfo>
           <DateNav>
             <DateButton onClick={() => changeDate(-1)}>‹</DateButton>
@@ -372,7 +455,7 @@ export default function Table({
   };
 
   return (
-    <TableWrap $category={category}>
+    <TableWrap>
       <TableHeaderBar $category={category}>
         <HeaderInfo>
           <HeaderTitle $category={category}>Planning</HeaderTitle>
@@ -392,52 +475,96 @@ export default function Table({
         </DateNav>
       </TableHeaderBar>
 
-      <TimelineHeader $category={category}>
-        {slots.map((s) => (
-          <TimeSlot key={s}>{s}</TimeSlot>
-        ))}
-      </TimelineHeader>
+      <ScrollContainer>
+        <InnerTimelineWrapper>
+          <TimelineHeader $category={category}>
+            {slots.map((s) => (
+              <TimeSlot key={s}>{s}</TimeSlot>
+            ))}
+          </TimelineHeader>
 
-      <TableBody $category={category}>
-        <TimelineTrack $height={trackHeight}>
-          {appts.map((appt) => {
-            const start = parseTime(appt.startTime) || minStart;
-            const end = getEnd(appt);
-            const left = ((start - minStart) / span) * 94;
-            const width = (Math.max(15, end - start) / span) * 100;
-            const bg = colorFor(appt.service || category, appt.id);
-            const textColor = "#111";
-            const lane = apptLanes[appt.id] || 0;
-            const topVal = 12 + lane * 92;
+          <TableBody $category={category}>
+            <TimelineTrack $height={trackHeight}>
+              {appts.map((appt) => {
+                const start = parseTime(appt.startTime) || minStart;
+                const end = getEnd(appt);
+                const left = ((start - minStart) / span) * 94;
+                const width = (Math.max(15, end - start) / span) * 100;
+                const bg = colorFor(appt.service || category, appt.id);
+                const textColor = "#111";
+                const lane = apptLanes[appt.id] || 0;
+                const topVal = 12 + lane * 92;
 
-            return (
-              <ApptCard
-                key={appt.id}
-                style={{
-                  left: `${left}%`,
-                  width: `${width}%`,
-                  top: `${topVal}px`,
-                  background: bg,
-                  color: textColor,
-                }}
-                onClick={() => {
-                  setActiveAppt(appt);
-                  setModalOpen(true);
-                }}
-                title={`${appt.clientName} — ${statutLabel(appt.statut)}`}
+                const apptEndDate = appt.endTime ? new Date(appt.endTime) : null;
+                const isPast = apptEndDate ? apptEndDate < new Date() : false;
+                return (
+                  <ApptCard
+                    key={appt.id}
+                    style={{
+                      left: `${left}%`,
+                      width: `${width}%`,
+                      top: `${topVal}px`,
+                      background: bg,
+                      opacity: isPast ? 0.65 : 1,
+                      color: textColor,
+                    }}
+                    onClick={() => {
+                      setActiveAppt(appt);
+                      setModalOpen(true);
+                    }}
+                    title={`${appt.clientName} — ${statutLabel(appt.status)}`}
+                  >
+                    {/* NOUVEAU : Bouton Croix en haut à droite */}
+                    <DeleteBtn
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingAppt(appt);
+                      }}
+                      title="Supprimer le rendez-vous"
+                    >
+                      ✕
+                    </DeleteBtn>
+
+                    <ApptTitle>{appt.clientName}</ApptTitle>
+                    <ApptMeta>
+                      {statutLabel(appt.status)}
+                      {appt.price ? ` • ${appt.price} DA` : ""}
+                      {appt.practitioner
+                        ? ` • ${practitioners.find((p) => p._id === appt.practitioner)?.fullName || "Praticienne inconnue"}`
+                        : ""}
+                    </ApptMeta>
+                  </ApptCard>
+                );
+              })}
+            </TimelineTrack>
+          </TableBody>
+        </InnerTimelineWrapper>
+      </ScrollContainer>
+
+      {/* NOUVEAU : Popup de confirmation de suppression */}
+      {deletingAppt && (
+        <ConfirmOverlay onClick={() => setDeletingAppt(null)}>
+          <ConfirmBox onClick={(e) => e.stopPropagation()}>
+            <h4>Confirmer la suppression</h4>
+            <p>
+              Voulez-vous vraiment supprimer le rendez-vous de{" "}
+              <strong>{deletingAppt.clientName}</strong> ?
+            </p>
+            <ConfirmActions>
+              <DateButton onClick={() => setDeletingAppt(null)}>
+                Annuler
+              </DateButton>
+              <TodayButton
+                style={{ background: "#e53e3e", borderColor: "#e53e3e" }}
+                onClick={handleDeleteConfirm}
+                disabled={isDeleting}
               >
-                <ApptTitle>{appt.clientName}</ApptTitle>
-                <ApptMeta>
-                  {statutLabel(appt.statut)}
-                  {appt.practitioner
-                    ? ` • ${practitioners.find((p) => p._id === appt.practitioner)?.fullName || "Praticienne inconnue"}`
-                    : ""}
-                </ApptMeta>
-              </ApptCard>
-            );
-          })}
-        </TimelineTrack>
-      </TableBody>
+                {isDeleting ? "Suppression..." : "Supprimer"}
+              </TodayButton>
+            </ConfirmActions>
+          </ConfirmBox>
+        </ConfirmOverlay>
+      )}
 
       <Modal
         open={modalOpen}
@@ -447,7 +574,7 @@ export default function Table({
         serverError={serverModalError}
         onClose={() => {
           setModalOpen(false);
-          setServerModalError('');
+          setServerModalError("");
         }}
         onSave={(data) => {
           if (!activeAppt) return;
@@ -456,7 +583,7 @@ export default function Table({
           const values = Object.values(data);
           onApptChange(activeAppt.id, keys, values);
           setModalOpen(false);
-          setServerModalError('');
+          setServerModalError("");
         }}
         practitioners={practitioners}
         existingAppointments={allAppts}

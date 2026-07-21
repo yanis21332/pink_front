@@ -92,6 +92,16 @@ const HeroVeil = styled.div`
 const HeroContent = styled.div`
   position: relative;
   z-index: 2;
+
+  p,
+  span,
+  label,
+  h1,
+  h2,
+  div,
+  h3 {
+    color: #ffdcc1 !important;
+  }
 `;
 
 const Eyebrow = styled.div`
@@ -178,7 +188,12 @@ export default function Hero({ category, appts }) {
 
   return (
     <HeroContainer>
-      <HeroBg style={{ backgroundImage: `url('${service.img}')` }} />
+      <HeroBg
+        style={{
+          backgroundImage: `url('${service.img}')`,
+          zIndex: 1
+        }}
+      />
       <HeroVeil className={category} />
       <HeroContent>
         <Eyebrow className={isAltText ? "alt-text" : ""}>
@@ -188,7 +203,7 @@ export default function Hero({ category, appts }) {
           {service.label}
         </HeroTitle>
         <HeroCount className={isAltText ? "alt-text" : ""}>
-          {count} rendez-vous
+          {count && "0"} rendez-vous
         </HeroCount>
       </HeroContent>
     </HeroContainer>

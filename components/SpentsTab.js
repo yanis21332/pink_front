@@ -3,12 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import styled from "styled-components";
 import api from "../lib/axios";
-import BillCard from "./BillCard";
 import { API } from "../lib/data";
-import BillFormModal from "./BillFormModal";
-import CompleteBillCard from "./CompleteBillCard";
+import SpentFormModal from "./SpentFormModal";
+import SpentCard from "./SpentCard";
 
-const BillsContainer = styled.div`
+const SpentsContainer = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -76,7 +75,7 @@ const SortSelect = styled.select`
   }
 `;
 
-const AddBillButton = styled.button`
+const AddSpentButton = styled.button`
   padding: 10px 16px;
   border-radius: 8px;
   border: 1px solid rgba(251, 248, 243, 0.2);
@@ -98,7 +97,7 @@ const AddBillButton = styled.button`
   }
 `;
 
-const BillsList = styled.div`
+const SpentsList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -187,10 +186,10 @@ const ResetB = styled.button`
   font-size: 11px;
 `;
 
-export default function BillsTab({ menu, onBillsChange }) {
+export default function BillsTab({ menu, onSpentsChange }) {
   const [sortBy, setSortBy] = useState("date-desc");
-  const [displayedBills, setDisplayedBills] = useState([]);
-  const [searchedBills, setSearchedBills] = useState([]);
+  const [displayedSpents, setDisplayedSpents] = useState([]);
+  const [searchedSpents, setSearchedSpents] = useState([]);
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -200,7 +199,7 @@ export default function BillsTab({ menu, onBillsChange }) {
   const [itemsPerPage] = useState(10);
 
   // Fonction unique de récupération de données depuis le serveur
-  const fetchBillsFromServer = useCallback(
+  const fetchSpentsFromServer = useCallback(
     async (pageToFetch, isNewSort = false) => {
       if (isLoading) return;
       setIsLoading(true);
@@ -208,22 +207,22 @@ export default function BillsTab({ menu, onBillsChange }) {
       try {
         // Envoi des query params corrects au Back-end (page, limit, sort)
         const response = await api.get(
-          `${API}/api/bills/get-bills?page=${pageToFetch}&limit=${itemsPerPage}&sort=${sortBy}`,
+          `${API}/api/spents/get-spents?page=${pageToFetch}&limit=${itemsPerPage}&sort=${sortBy}`,
           { withCredentials: true },
         );
 
-        const { bills: fetchedBills, pagination } = response.data;
+        const { spents: fetchedSpents, pagination } = response.data;
 
-        const mappedData = fetchedBills.map((bill) => ({
-          ...bill,
-          id: bill._id,
+        const mappedData = fetchedSpents.map((spent) => ({
+          ...spent,
+          id: spent._id,
         }));
 
-        setDisplayedBills((prevBills) => {
+        setDisplayedSpents((prevSpents) => {
           // Si on change de tri, on remplace les données. Sinon, on les ajoute à la suite.
           const updated = isNewSort
             ? mappedData
-            : [...prevBills, ...mappedData];
+            : [...prevSpents, ...mappedData];
 
           return updated;
         });
@@ -231,40 +230,19 @@ export default function BillsTab({ menu, onBillsChange }) {
         // Met à jour la présence ou non de pages supplémentaires
         setHasMore(pageToFetch < pagination.totalPages);
       } catch (err) {
-        console.error("Erreur lors de la récupération des factures :", err);
+        console.error("Erreur lors de la récupération des dépenses :", err);
       } finally {
         setIsLoading(false);
       }
     },
-    [sortBy, itemsPerPage, isLoading, onBillsChange],
+    [sortBy, itemsPerPage, isLoading, onSpentsChange],
   );
 
-  const handleDeleteBill = async (id) => {
-    if (!id) return;
-
-    const confirmDelete = window.confirm(
-      "Êtes-vous sûr de vouloir supprimer cette facture ?",
-    );
-    if (!confirmDelete) return;
-
-    try {
-      await api.delete(`${API}/api/bills/delete-bill/${id}`);
-      setDisplayedBills((prev) => prev.filter((bill) => bill.id !== id));
-      setSearchedBills((prev) => prev.filter((bill) => bill.id !== id));
-      if (isSearchMode === true) {
-        setIsSearchMode(false);
-        setQuerySearch("");
-      }
-    } catch (err) {
-      console.error("Erreur lors de la suppression de la facture :", err);
-      alert("Une erreur est survenue lors de la suppression de la facture.");
-    }
-  };
   // Effet 1 : Déclenché uniquement lorsque le critère de tri change
   useEffect(() => {
     setPage(1);
     setHasMore(true);
-    fetchBillsFromServer(1, true);
+    fetchSpentsFromServer(1, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortBy]);
 
@@ -277,7 +255,7 @@ export default function BillsTab({ menu, onBillsChange }) {
         if (entries[0].isIntersecting) {
           setPage((prevPage) => {
             const nextPage = prevPage + 1;
-            fetchBillsFromServer(nextPage, false);
+            fetchSpentsFromServer(nextPage, false);
             return nextPage;
           });
         }
@@ -293,13 +271,34 @@ export default function BillsTab({ menu, onBillsChange }) {
     return () => {
       if (currentTarget) observer.unobserve(currentTarget);
     };
-  }, [hasMore, isLoading, fetchBillsFromServer]);
+  }, [hasMore, isLoading, fetchSpentsFromServer]);
 
-  const handleCreateBill = async (billData) => {
+  const handleDeleteSpent = async (id) => {
+    if (!id) return;
+
+    const confirmDelete = window.confirm(
+      "Êtes-vous sûr de vouloir supprimer cette dépense ?",
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await api.delete(`${API}/api/spents/delete-spent/${id}`);
+      setDisplayedSpents((prev) => prev.filter((bill) => bill.id !== id));
+      setSearchedSpents((prev) => prev.filter((bill) => bill.id !== id));
+      if (isSearchMode === true) {
+        setIsSearchMode(false);
+        setQuerySearch("");
+      }
+    } catch (err) {
+      console.error("Erreur lors de la suppression de la dépense :", err);
+      alert("Une erreur est survenue lors de la suppression de la dépense.");
+    }
+  };
+  const handleCreateSpent = async (spentData) => {
     try {
       const response = await api.post(
-        `${API}/api/bills/create-bill`,
-        billData,
+        `${API}/api/spents/create-spent`,
+        spentData,
         { withCredentials: true },
       );
 
@@ -308,7 +307,7 @@ export default function BillsTab({ menu, onBillsChange }) {
       // Réinitialise le défilement et recharge depuis la première page pour voir le nouvel élément
       setPage(1);
       setHasMore(true);
-      fetchBillsFromServer(1, true);
+      fetchSpentsFromServer(1, true);
     } catch (error) {
       console.error("Erreur lors de la création de la facture :", error);
       throw error;
@@ -325,19 +324,12 @@ export default function BillsTab({ menu, onBillsChange }) {
     setIsLoading(true);
     try {
       const response = await api.get(
-        `${API}/api/bills/search?q=${querySearch}`,
+        `${API}/api/spents/search?q=${querySearch}`,
       );
 
-      const { data } = response.data;
-      const formattedGroups = data.map((group) => ({
-        ...group,
-        list: group.list.map((bill) => ({
-          ...bill,
-          id: bill.id || bill._id,
-        })),
-      }));
+      const sSpents = response.data.spents;
 
-      setSearchedBills(formattedGroups);
+      setSearchedSpents(sSpents);
       setIsLoading(false);
     } catch (err) {
       console.error("Erreur lors de la recherche de la facture :", error);
@@ -347,9 +339,9 @@ export default function BillsTab({ menu, onBillsChange }) {
   };
 
   return (
-    <BillsContainer>
+    <SpentsContainer>
       <HeaderSection>
-        <Title>Factures</Title>
+        <Title>Dépenses</Title>
         <ControlsSection>
           <SortSelect
             value={sortBy}
@@ -359,11 +351,10 @@ export default function BillsTab({ menu, onBillsChange }) {
             <option value="date-asc">Plus anciennes d'abord</option>
             <option value="amount-desc">Montant décroissant</option>
             <option value="amount-asc">Montant croissant</option>
-            <option value="status">Payées en premier</option>
           </SortSelect>
-          <AddBillButton onClick={() => setModalOpen(true)}>
-            + Ajouter une facture
-          </AddBillButton>
+          <AddSpentButton onClick={() => setModalOpen(true)}>
+            + Ajouter une dépense
+          </AddSpentButton>
         </ControlsSection>
       </HeaderSection>
       <SearchSpace $isLoading={isLoading}>
@@ -387,31 +378,21 @@ export default function BillsTab({ menu, onBillsChange }) {
           Réinitialiser X
         </ResetB>
       )}
-      {displayedBills.length === 0 && !isLoading ? (
+      {displayedSpents.length === 0 && !isLoading ? (
         <EmptyState>
-          <p>Aucune facture pour le moment</p>
+          <p>Aucune dépense pour le moment</p>
         </EmptyState>
       ) : (
         <>
-          <BillsList>
+          <SpentsList>
             {isSearchMode === false
-              ? displayedBills.map((bill, i) => (
-                  <BillCard
-                    onDeleteSuccess={handleDeleteBill}
-                    key={`${bill.id}x${i}`}
-                    bill={bill}
-                    menu={menu}
-                  />
+              ? displayedSpents.map((spent, i) => (
+                  <SpentCard key={`${spent.id}x${i}`} spent={spent} onDeleteSucess={handleDeleteSpent} />
                 ))
-              : searchedBills.map((bill, i) => (
-                  <CompleteBillCard
-                    key={`${bill.id}x${i}`}
-                    onDeleteSuccess={handleDeleteBill}
-                    bill={bill}
-                    menu={menu}
-                  />
+              : searchedSpents.map((spent, i) => (
+                  <SpentCard key={`${spent.id}x${i}`} spent={spent} onDeleteSucess={handleDeleteSpent}  />
                 ))}
-          </BillsList>
+          </SpentsList>
 
           {/* L'élément cible de l'observer s'affiche uniquement s'il reste des éléments à charger */}
           {hasMore && (
@@ -425,12 +406,12 @@ export default function BillsTab({ menu, onBillsChange }) {
         </>
       )}
 
-      <BillFormModal
+      <SpentFormModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        onSave={handleCreateBill}
+        onSave={handleCreateSpent}
         menu={menu}
       />
-    </BillsContainer>
+    </SpentsContainer>
   );
 }

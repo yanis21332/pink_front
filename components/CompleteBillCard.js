@@ -1,10 +1,8 @@
 "use client";
 
-import React, { useRef, useState } from "react";
-import styled from "styled-components";
+import React, { useEffect, useRef, useState } from "react";
 import { useReactToPrint } from "react-to-print";
-import api from "../lib/axios";
-import { API } from "../lib/data";
+import styled from "styled-components";
 
 const CardContainer = styled.div`
   display: flex;
@@ -71,11 +69,10 @@ const StatusBadge = styled.span`
   font-family: var(--font-manrope), "Manrope", sans-serif;
   text-transform: uppercase;
   background: ${(props) =>
-    props.$status === "paid" || props.$isPaid === true
+    props.$status === "paid"
       ? "rgba(31, 77, 31, 0.2)"
       : "rgba(178, 59, 59, 0.2)"};
-  color: ${(props) =>
-    props.$status === "paid" || props.$isPaid === true ? "#7bb783" : "#ed96a6"};
+  color: ${(props) => (props.$status === "paid" ? "#7bb783" : "#ed96a6")};
 `;
 
 const ActionButtons = styled.div`
@@ -109,13 +106,22 @@ const Button = styled.button`
   &:active {
     transform: scale(0.98);
   }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
 `;
 
+const DeleteButton = styled.button`
+  background: rgba(178, 59, 59, 0.15);
+  border-color: rgba(178, 59, 59, 0.35);
+  color: #ed96a6;
+  border: 1px solid rgba(251, 248, 243, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(178, 59, 59, 0.25);
+    border-color: rgba(178, 59, 59, 0.5);
+    color: #f7b2bd;
+  }
+`;
 const PrintButton = styled(Button)`
   background: linear-gradient(
     135deg,
@@ -141,19 +147,6 @@ const DetailsButton = styled(Button)`
   &:hover {
     border-color: var(--rose);
     color: var(--rose);
-  }
-`;
-
-// Bouton supprimer stylisé
-const DeleteButton = styled(Button)`
-  background: rgba(178, 59, 59, 0.15);
-  border-color: rgba(178, 59, 59, 0.35);
-  color: #ed96a6;
-
-  &:hover {
-    background: rgba(178, 59, 59, 0.25);
-    border-color: rgba(178, 59, 59, 0.5);
-    color: #f7b2bd;
   }
 `;
 
@@ -247,12 +240,12 @@ const TotalAmount = styled.div`
   font-size: 15px;
 `;
 
-const DetailsFooter = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(251, 248, 243, 0.08);
+const Separator = styled.div`
+  width: 100%;
+  height: 1px;
+  background: #7a7a7a94;
+  margin-bottom: 18px;
+  margin-top: 18px;
 `;
 
 const TicketContainer = styled.div`
@@ -327,9 +320,8 @@ const TicketFooter = styled.div`
   padding-top: 8px;
 `;
 
-export default function BillCard({ bill, menu, onDeleteSuccess }) {
+export default function CompleteBillCard({ bill, menu, onDeleteSuccess }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const formatDate = (date) => {
     if (!date) return "N/A";
@@ -342,7 +334,6 @@ export default function BillCard({ bill, menu, onDeleteSuccess }) {
   };
 
   const getServiceName = (serviceId) => {
-    if (!menu) return "Service inconnu";
     for (const category of menu) {
       if (category.services && Array.isArray(category.services)) {
         const service = category.services.find(
@@ -356,16 +347,19 @@ export default function BillCard({ bill, menu, onDeleteSuccess }) {
     return "Service inconnu";
   };
 
-  const handleDeleteBill = async () => {
-    const billId = bill._id || bill.id;
+  const [isDeleting, setIsDeleting] = useState(false);
+  const handleDeleteBill = async (b) => {
+    const billId = b._id || b.id;
     if (!billId) return;
+    setIsDeleting(true);
     if (onDeleteSuccess) {
       onDeleteSuccess(billId);
+      setIsDeleting(false);
       return;
     }
 
     const confirmDelete = window.confirm(
-      "Êtes-vous sûr de vouloir supprimer cette facture ?",
+      "Êtes-vous sûr de vouloir supprimer cette facture 2 ?",
     );
     if (!confirmDelete) return;
 
@@ -433,51 +427,61 @@ export default function BillCard({ bill, menu, onDeleteSuccess }) {
       </TicketFooter>
     </TicketContainer>
   ));
-
+  useEffect(() => {
+    console.log(bill);
+  }, [bill]);
   return (
     <CardContainer>
       <CardHeader>
         <CardInfo>
           <div>
-            <ClientName>{bill.clientName || "Client inconnu"}</ClientName>
-            <BillDate>{formatDate(bill.createdAt)}</BillDate>
+            <ClientName>{bill.commonClientName || "Client inconnu"}</ClientName>
+            <BillDate>{bill.list.length} factures trouvées !</BillDate>
           </div>
         </CardInfo>
         <ActionButtons>
-          <StatusBadge $status={bill.status} $isPaid={bill.isPaid}>
-            {bill.isPaid === true || bill.status === "paid"
-              ? "Payée"
-              : "Non payée"}
-          </StatusBadge>
           <DetailsButton onClick={() => setDetailsOpen(!detailsOpen)}>
             {detailsOpen ? "Masquer" : "Détails"}
           </DetailsButton>
-          <PrintButton onClick={handlePrint}>Imprimer</PrintButton>
-          <div style={{ display: "none" }}>
-            <BillPrintable ref={componentRef} bill={bill} />
-          </div>
         </ActionButtons>
       </CardHeader>
 
       <DetailsSection $open={detailsOpen}>
-        <DetailGrid>
-          <DetailItem>
-            <DetailLabel>Montant Total</DetailLabel>
-            <DetailValue>{bill.totalAmount || 0} DA</DetailValue>
-          </DetailItem>
-          <DetailItem>
-            <DetailLabel>Méthode de Paiement</DetailLabel>
-            <DetailValue>{bill.paymentMethod || "N/A"}</DetailValue>
-          </DetailItem>
-          <DetailItem>
-            <DetailLabel>Statut</DetailLabel>
-            <DetailValue>
-              {bill.isPaid === true || bill.status === "paid"
-                ? "Payée"
-                : "Non payée"}
-            </DetailValue>
-          </DetailItem>
-        </DetailGrid>
+        {bill.list.map((b, i) => (
+          <React.Fragment key={`${b._id || b.id}-${i}`}>
+            <DetailGrid key={`${b._id}-${i}`}>
+              <DetailItem>
+                <DetailLabel>Montant Total</DetailLabel>
+                <DetailValue>{b.totalAmount || 0} DA</DetailValue>
+              </DetailItem>
+              <DetailItem>
+                <DetailLabel>Méthode de Paiement</DetailLabel>
+                <DetailValue>{b.paymentMethod || "N/A"}</DetailValue>
+              </DetailItem>
+              <DetailItem>
+                <DetailLabel>Statut</DetailLabel>
+                <DetailValue>
+                  {b.isPaid === true ? "Payée" : "Non payée"}
+                </DetailValue>
+              </DetailItem>
+              <DetailItem>
+                <DetailLabel>Date</DetailLabel>
+                <DetailValue>{formatDate(b.createdAt)}</DetailValue>
+              </DetailItem>
+              <PrintButton onClick={handlePrint}>Imprimer</PrintButton>
+              <div style={{ display: "none" }}>
+                <BillPrintable ref={componentRef} bill={bill} />
+              </div>
+              <DeleteButton
+                onClick={() => handleDeleteBill(b)}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Suppression..." : "Supprimer la facture"}
+              </DeleteButton>
+            </DetailGrid>
+            <Separator />
+          </React.Fragment>
+        ))}
 
         {bill.services && bill.services.length > 0 && (
           <ServicesList>
@@ -494,12 +498,6 @@ export default function BillCard({ bill, menu, onDeleteSuccess }) {
             </TotalAmount>
           </ServicesList>
         )}
-
-        <DetailsFooter>
-          <DeleteButton onClick={handleDeleteBill} disabled={isDeleting}>
-            {isDeleting ? "Suppression..." : "Supprimer la facture"}
-          </DeleteButton>
-        </DetailsFooter>
       </DetailsSection>
     </CardContainer>
   );

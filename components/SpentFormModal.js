@@ -147,7 +147,6 @@ const ServicesSection = styled.div`
 
 const CategorySelect = styled(Select)`
   margin-bottom: 12px;
-
 `;
 
 const ServiceItem = styled.div`
@@ -206,7 +205,7 @@ const SelectedServicesInfo = styled.div`
 `;
 
 const ErrorMessage = styled.div`
-  color: #ed96a6;
+  color: #ed96a6 !important;
   font-size: 12px;
   font-family: var(--font-manrope), "Manrope", sans-serif;
   margin-top: 4px;
@@ -267,48 +266,20 @@ const SaveButton = styled(Button)`
   }
 `;
 
-export default function BillFormModal({ open, onClose, onSave, menu }) {
+const getTodayDate = () => {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+};
+
+export default function BillFormModal({ open, onClose, onSave }) {
   const [formData, setFormData] = useState({
-    clientName: "",
-    selectedCategory: "",
-    servicesConsumed: [], // Contient tous les IDs de services cochés (toutes catégories confondues)
-    paymentMethod: "espèces",
-    isPaid: "unpaid",
+    spentName: "",
+    spentDate: getTodayDate(),
+    spentValue: "",
   });
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // 1. Catégories valides pour le select
-  const categoryOptions = useMemo(
-    () => menu?.filter((item) => item.services && item.services.length > 0) || [],
-    [menu]
-  );
-
-  // 2. Liste plate de TOUS les services (toutes catégories) pour la recherche/calculs
-  const allServices = useMemo(() => {
-    if (!menu) return [];
-    return menu.flatMap((cat) => cat.services || []);
-  }, [menu]);
-
-  // 3. Services de la catégorie actuellement sélectionnée (pour le rendu)
-  const currentCategoryServices = useMemo(() => {
-    if (!formData.selectedCategory) return [];
-    const category = categoryOptions.find(
-      (c) => (c.id || c._id) === formData.selectedCategory
-    );
-    return category?.services || [];
-  }, [formData.selectedCategory, categoryOptions]);
-
-  // 4. Calcul du total global sur l'ensemble des services cochés
-  const calculateTotal = () => {
-    return formData.servicesConsumed.reduce((sum, serviceId) => {
-      const service = allServices.find(
-        (s) => (s.id || s._id) === serviceId
-      );
-      return sum + (service?.price || 0);
-    }, 0);
-  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -317,39 +288,24 @@ export default function BillFormModal({ open, onClose, onSave, menu }) {
       [name]: value,
     }));
     if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
-    }
-  };
-
-  // CORRECTION : Changement de catégorie SANS effacer servicesConsumed
-  const handleCategoryChange = (e) => {
-    setFormData((prev) => ({
-      ...prev,
-      selectedCategory: e.target.value,
-    }));
-  };
-
-  const handleServiceToggle = (serviceId) => {
-    setFormData((prev) => ({
-      ...prev,
-      servicesConsumed: prev.servicesConsumed.includes(serviceId)
-        ? prev.servicesConsumed.filter((id) => id !== serviceId)
-        : [...prev.servicesConsumed, serviceId],
-    }));
-    if (errors.services) {
-      setErrors((prev) => ({ ...prev, services: "" }));
+      setErrors((prev) => ({
+        ...prev,
+        [name]: "",
+      }));
     }
   };
 
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.clientName.trim()) {
-      newErrors.clientName = "Le nom du client est requis";
+    if (!formData.spentName.trim()) {
+      newErrors.spentName = "Le nom de la dépense est requis";
     }
-
-    if (formData.servicesConsumed.length === 0) {
-      newErrors.services = "Au minimum 1 service doit être sélectionné";
+    if (!formData.spentValue.trim()) {
+      newErrors.spentValue = "La valeur de la dépense est requis";
+    }
+    if (!formData.spentDate.trim()) {
+      newErrors.spentDate = "La date de la dépense est requis";
     }
 
     setErrors(newErrors);
@@ -365,41 +321,27 @@ export default function BillFormModal({ open, onClose, onSave, menu }) {
 
     setIsSubmitting(true);
 
+    const dateObj = new Date(formData.spentDate)
     try {
-      // CORRECTION : Recherche dans allServices pour inclure les services de toutes les catégories
-      const selectedServices = formData.servicesConsumed.map((serviceId) => {
-        const service = allServices.find(
-          (s) => (s.id || s._id) === serviceId
-        );
-        return {
-          serviceId,
-          price: service?.price || 0,
-        };
-      });
-
-      const billData = {
-        clientName: formData.clientName.trim(),
-        selectedServices,
-        paymentMethod: formData.paymentMethod,
-        isPaid: formData.isPaid === "paid",
-        date: new Date().toISOString(),
+      const spentData = {
+        name: formData.spentName.trim(),
+        value: formData.spentValue.trim(),
+        spentDate: dateObj.toISOString(),
       };
 
-      await onSave(billData);
+      await onSave(spentData);
 
-      // Reset du formulaire
+      // Reset form
       setFormData({
-        clientName: "",
-        selectedCategory: "",
-        servicesConsumed: [],
-        paymentMethod: "espèces",
-        isPaid: "unpaid",
+        spentName: "",
+        spentDate: new Date(),
+        spentValue: "",
       });
       setErrors({});
     } catch (error) {
-      console.error("Erreur lors de la création :", error);
+      console.error("Erreur lors de la création de la dépense:", error);
       setErrors({
-        submit: "Une erreur est survenue lors de la création de la facture",
+        submit: "Une erreur est survenue lors de la création de la dépense",
       });
     } finally {
       setIsSubmitting(false);
@@ -409,117 +351,51 @@ export default function BillFormModal({ open, onClose, onSave, menu }) {
   return (
     <ModalOverlay $open={open} onClick={onClose}>
       <ModalContent onClick={(e) => e.stopPropagation()}>
-        <ModalHeader>Créer une nouvelle facture</ModalHeader>
+        <ModalHeader>Créer une nouvelle dépense</ModalHeader>
 
         <form onSubmit={handleSubmit}>
           <FormGroup>
-            <Label htmlFor="clientName">Nom du Client *</Label>
+            <Label htmlFor="spentName">Nom de la dépense</Label>
             <Input
-              id="clientName"
-              name="clientName"
+              id="spentName"
+              name="spentName"
               type="text"
-              placeholder="Ex: Ahmed Ben Ali"
-              value={formData.clientName}
+              placeholder="Ex: Achat de produites laitiers."
+              value={formData.spentName}
               onChange={handleInputChange}
             />
-            {errors.clientName && (
-              <ErrorMessage>{errors.clientName}</ErrorMessage>
+            {errors.spentName && (
+              <ErrorMessage>{errors.spentName}</ErrorMessage>
             )}
           </FormGroup>
 
           <FormGroup>
-            <Label>Services Consommés *</Label>
-            <ServicesSection>
-              <CategorySelect
-                value={formData.selectedCategory}
-                onChange={handleCategoryChange}
-              >
-                <option value="">Sélectionner une catégorie à afficher...</option>
-                {categoryOptions?.map((category) => (
-                  <option
-                    key={category.id || category._id}
-                    value={category.id || category._id}
-                  >
-                    {category.categoryName}
-                  </option>
-                ))}
-              </CategorySelect>
-
-              {/* Liste des services de la catégorie sélectionnée */}
-              {currentCategoryServices.length > 0 ? (
-                <>
-                  {currentCategoryServices.map((service) => {
-                    const sId = service.id || service._id;
-                    const isChecked = formData.servicesConsumed.includes(sId);
-
-                    return (
-                      <ServiceItem key={sId}>
-                        <Checkbox
-                          type="checkbox"
-                          id={`service-${sId}`}
-                          checked={isChecked}
-                          onChange={() => handleServiceToggle(sId)}
-                        />
-                        <ServiceLabel htmlFor={`service-${sId}`}>
-                          <span>{service.name || service.label}</span>
-                          <ServicePrice>{service.price} DA</ServicePrice>
-                        </ServiceLabel>
-                      </ServiceItem>
-                    );
-                  })}
-                </>
-              ) : (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: "20px",
-                    color: "rgba(251, 248, 243, 0.5)",
-                    fontSize: "13px",
-                  }}
-                >
-                  Sélectionnez une catégorie ci-dessus pour cocher ses services
-                </div>
-              )}
-
-              {/* Récapitulatif global (visible dès qu'au moins 1 service est coché, peu importe la catégorie affichée) */}
-              {formData.servicesConsumed.length > 0 && (
-                <SelectedServicesInfo>
-                  {formData.servicesConsumed.length} service(s) sélectionné(s) au total
-                  - Montant cumulé : {calculateTotal()} DA
-                </SelectedServicesInfo>
-              )}
-
-              {errors.services && (
-                <ErrorMessage>{errors.services}</ErrorMessage>
-              )}
-            </ServicesSection>
-          </FormGroup>
-
-          <FormGroup>
-            <Label htmlFor="paymentMethod">Méthode de Paiement *</Label>
-            <Select
-              id="paymentMethod"
-              name="paymentMethod"
-              value={formData.paymentMethod}
+            <Label htmlFor="spentValue">Montant de la Dépense *</Label>
+            <Input
+              id="spentValue"
+              name="spentValue"
+              type="number"
+              placeholder="Ex: 3000 DA"
+              value={formData.spentValue}
               onChange={handleInputChange}
-            >
-              <option value="espèces">Espèces</option>
-              <option value="virement">Virement</option>
-              <option value="carte">Carte</option>
-            </Select>
+            />
+            {errors.spentValue && (
+              <ErrorMessage>{errors.spentValue}</ErrorMessage>
+            )}
           </FormGroup>
-
           <FormGroup>
-            <Label htmlFor="isPaid">Statut de la Facture *</Label>
-            <Select
-              id="isPaid"
-              name="isPaid"
-              value={formData.isPaid}
+            <Label htmlFor="spentDate">La date de la dépense.</Label>
+            <Input
+              id="spentDate"
+              name="spentDate"
+              min={getTodayDate()}
+              type="date"
+              value={formData.spentDate}
               onChange={handleInputChange}
-            >
-              <option value="unpaid">Non payée</option>
-              <option value="paid">Payée</option>
-            </Select>
+            />
+            {errors.spentDate && (
+              <ErrorMessage>{errors.spentDate}</ErrorMessage>
+            )}
           </FormGroup>
 
           {errors.submit && <ErrorMessage>{errors.submit}</ErrorMessage>}
@@ -529,7 +405,7 @@ export default function BillFormModal({ open, onClose, onSave, menu }) {
               Annuler
             </CancelButton>
             <SaveButton type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Création..." : "Créer la facture"}
+              {isSubmitting ? "Création..." : "Créer la dépense"}
             </SaveButton>
           </FormFooter>
         </form>
