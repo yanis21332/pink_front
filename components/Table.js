@@ -423,6 +423,16 @@ const FormRow = styled.div`
   gap: 12px;
 `;
 
+const ErrorBanner = styled.div`
+  background: #fff5f5;
+  border: 1px solid #fed7d7;
+  color: #c53030;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+`;
+
 export default function Table({
   appts,
   onApptChange,
@@ -432,7 +442,7 @@ export default function Table({
   selectedDate,
   onSelectedDateChange,
   practitioners = [],
-  allAppts,
+  allAppts = [],
 }) {
   const recurring = recurringNames(appts);
   const [activeAppt, setActiveAppt] = useState(null);
@@ -455,20 +465,26 @@ export default function Table({
     endTime: "12:00",
     price: 0,
     note: "",
-    clientName: ""
+    clientName: "",
   });
 
-  const shifts = getFiltered(allAppts,{cat:"deplacement",selectedDate:selectedDate})
-  
+  const shifts = getFiltered(allAppts, {
+    cat: "deplacement",
+    selectedDate: selectedDate,
+  });
+
   const parseTime = (t) => {
     if (!t) return null;
-    if (t.includes("T")) {
+    if (typeof t === "string" && t.includes("T")) {
       const [, timePart] = t.split("T");
       const [hh, mm] = timePart.split(":").map(Number);
       return hh * 60 + (mm || 0);
     }
-    const [hh, mm] = t.split(":").map(Number);
-    return hh * 60 + (mm || 0);
+    if (typeof t === "string") {
+      const [hh, mm] = t.split(":").map(Number);
+      return hh * 60 + (mm || 0);
+    }
+    return null;
   };
 
   const getEnd = (appt) => {
@@ -476,6 +492,57 @@ export default function Table({
     if (appt.duration) return parseTime(appt.startTime) + Number(appt.duration);
     return parseTime(appt.startTime) + 60;
   };
+
+  /* --- LOGIQUE DE DÉTECTION DE CONFLIT D'HORAIRES POUR LES SHIFTS --- */
+  const checkShiftConflict = () => {
+    const newStart = parseTime(shiftFormData.startTime);
+    const newEnd = parseTime(shiftFormData.endTime);
+
+    if (newStart === null || newEnd === null) return null;
+
+    if (newStart >= newEnd) {
+      return "L'heure de fin doit être strictement supérieure à l'heure de début.";
+    }
+
+    if (!shiftFormData.practitioner) return null;
+
+    // Filtrer les RDV de la même date pour le même praticien
+    const currentEditingId = editingShift?.id || editingShift?._id;
+    const sameDayAppts = (allAppts || []).filter((a) => {
+      const aId = a.id || a._id;
+      if (currentEditingId && aId === currentEditingId) return false; // Ne pas se comparer à soi-même
+
+      const pId = typeof a.practitioner === "object" ? a.practitioner?._id : a.practitioner;
+      if (pId !== shiftFormData.practitioner) return false;
+
+      // Vérifier si c'est la même date
+      const aDate = a.startTime ? a.startTime.split("T")[0] : null;
+      return aDate === selectedDate;
+    });
+
+    // Vérifier les chevauchements : (StartA < EndB) && (EndA > StartB)
+    for (const item of sameDayAppts) {
+      const itemStart = parseTime(item.startTime);
+      const itemEnd = getEnd(item);
+
+      if (itemStart !== null && itemEnd !== null) {
+        if (newStart < itemEnd && newEnd > itemStart) {
+          const formattedStart = item.startTime.includes("T")
+            ? item.startTime.split("T")[1].substring(0, 5)
+            : item.startTime;
+          const formattedEnd = item.endTime && item.endTime.includes("T")
+            ? item.endTime.split("T")[1].substring(0, 5)
+            : "";
+
+          return `Conflit d'horaire : Le praticien a déjà un rendez-vous / déplacement prévu (${formattedStart}${formattedEnd ? " - " + formattedEnd : ""}).`;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const shiftConflictError = checkShiftConflict();
 
   const totalAppts = appts?.length || 0;
 
@@ -503,8 +570,7 @@ export default function Table({
   };
 
   const goToday = () => {
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const todayStr = getTodayDate();
     onSelectedDateChange(todayStr);
   };
 
@@ -542,7 +608,7 @@ export default function Table({
       note: "",
       service: "deplacement",
       status: "payé",
-      clientName: ""
+      clientName: "",
     });
     setShiftModalOpen(true);
   };
@@ -550,7 +616,6 @@ export default function Table({
   const openEditShiftModal = (shift) => {
     setEditingShift(shift);
 
-    // Extrait les heures HH:mm si ISO string
     const formatTime = (isoString) => {
       if (!isoString) return "09:00";
       if (isoString.includes("T")) {
@@ -568,14 +633,16 @@ export default function Table({
       endTime: formatTime(shift.endTime),
       price: shift.price || 0,
       note: shift.note || "",
-      clientName: shift.clientName
+      clientName: shift.clientName || "",
+      service: "deplacement",
+      status: shift.status || "payé",
     });
     setShiftModalOpen(true);
   };
 
   const handleShiftSubmit = async (e) => {
     e.preventDefault();
-    if (isShiftSubmitting) return;
+    if (isShiftSubmitting || shiftConflictError) return;
 
     try {
       setIsShiftSubmitting(true);
@@ -590,29 +657,23 @@ export default function Table({
         endTime: endDateTime,
         price: Number(shiftFormData.price),
         note: shiftFormData.note,
-        service: shiftFormData.service,
-        status: shiftFormData.status,
-        clientName: shiftFormData.clientName
+        service: shiftFormData.service || "deplacement",
+        status: shiftFormData.status || "payé",
+        clientName: shiftFormData.clientName,
       };
 
       if (editingShift) {
-        // UPDATE (PATCH)
-        const res = await api.patch(
+        await api.patch(
           `${API}/api/appointements/update-appointement/${editingShift.id || editingShift._id}`,
           payload,
           { withCredentials: true },
         );
-
       } else {
-        // CREATE (POST)
-        const res = await api.post(
+        await api.post(
           `${API}/api/appointements/create-appointement`,
           payload,
-          {
-            withCredentials: true,
-          },
+          { withCredentials: true },
         );
-
       }
 
       setShiftModalOpen(false);
@@ -636,9 +697,7 @@ export default function Table({
 
       await api.delete(
         `${API}/api/appointements/delete-appointement/${shiftId}`,
-        {
-          withCredentials: true,
-        },
+        { withCredentials: true },
       );
 
       setDeletingShift(null);
@@ -668,88 +727,12 @@ export default function Table({
     return iso;
   };
 
-  if (!appts || appts.length === 0) {
-    return (
-      <TableWrap>
-        <TableHeaderBar $category={category}>
-          <HeaderInfo>
-            <HeaderTitle $category={category}>Planning</HeaderTitle>
-            <HeaderMeta $category={category}>{formattedDate}</HeaderMeta>
-          </HeaderInfo>
-          <DateNav>
-            <DateButton onClick={() => changeDate(-1)}>‹</DateButton>
-            <DatePickerInput
-              type="date"
-              value={selectedDate}
-              onChange={(e) => onSelectedDateChange(e.target.value)}
-            />
-            <DateButton onClick={() => changeDate(1)}>›</DateButton>
-            <TodayButton onClick={goToday}>Aujourd'hui</TodayButton>
-          </DateNav>
-        </TableHeaderBar>
-        <EmptyState>
-          <div className="display">Aucun rendez-vous</div>
-          <div>Il n'y a pas de rendez-vous pour cette date.</div>
-        </EmptyState>
-
-        {category === "mariees" && (
-          <ShiftsSection $category={category}>
-            <ShiftsHeader>
-              <ShiftsTitle $category={category}>
-                Déplacements de la journée
-              </ShiftsTitle>
-              <CreateShiftBtn onClick={openCreateShiftModal}>
-                + Créer un déplacement
-              </CreateShiftBtn>
-            </ShiftsHeader>
-
-            {shifts.length === 0 ? (
-              <div style={{ fontSize: "0.88rem", color: "var(--ink-dim)" }}>
-                Aucun déplacement prévu pour cette journée.
-              </div>
-            ) : (
-              <ShiftsGrid>
-                {shifts.map((shift) => (
-                  <ShiftCard key={shift.id || shift._id}>
-                    <ShiftPractitioner>
-                      📍 {getPractitionerName(shift.practitioner)}{" "}
-                      (Indisponible)
-                    </ShiftPractitioner>
-                    <ShiftMeta>
-                      🕒 {formatShiftTime(shift.startTime)} -{" "}
-                      {formatShiftTime(shift.endTime)}
-                      <ShiftPrice>{shift.price} DA</ShiftPrice>
-                    </ShiftMeta>
-                    {shift.note && <ShiftNote>"{shift.note}"</ShiftNote>}
-                    <ShiftActions>
-                      <ShiftActionButton
-                        onClick={() => openEditShiftModal(shift)}
-                      >
-                        Modifier
-                      </ShiftActionButton>
-                      <ShiftActionButton
-                        $danger
-                        onClick={() => setDeletingShift(shift)}
-                      >
-                        Supprimer
-                      </ShiftActionButton>
-                    </ShiftActions>
-                  </ShiftCard>
-                ))}
-              </ShiftsGrid>
-            )}
-          </ShiftsSection>
-        )}
-      </TableWrap>
-    );
-  }
-
-  const times = appts.map((a) => ({
+  const times = (appts || []).map((a) => ({
     start: parseTime(a.startTime),
     end: getEnd(a),
   }));
-  const minStart = Math.min(...times.map((t) => t.start));
-  const maxEnd = Math.max(...times.map((t) => t.end));
+  const minStart = times.length ? Math.min(...times.map((t) => t.start)) : 540;
+  const maxEnd = times.length ? Math.max(...times.map((t) => t.end)) : 1080;
   const span = Math.max(60, Math.ceil(maxEnd / 60) * 60 - minStart);
 
   const slots = [];
@@ -762,7 +745,7 @@ export default function Table({
   const apptLanes = {};
   const lanes = [];
 
-  const sortedAppts = [...appts]
+  const sortedAppts = [...(appts || [])]
     .map((appt) => ({
       ...appt,
       startVal: parseTime(appt.startTime) || minStart,
@@ -833,72 +816,79 @@ export default function Table({
         </DateNav>
       </TableHeaderBar>
 
-      <ScrollContainer>
-        <InnerTimelineWrapper>
-          <TimelineHeader $category={category}>
-            {slots.map((s) => (
-              <TimeSlot key={s}>{s}</TimeSlot>
-            ))}
-          </TimelineHeader>
+      {!appts || appts.length === 0 ? (
+        <EmptyState>
+          <div className="display">Aucun rendez-vous</div>
+          <div>Il n'y a pas de rendez-vous pour cette date.</div>
+        </EmptyState>
+      ) : (
+        <ScrollContainer>
+          <InnerTimelineWrapper>
+            <TimelineHeader $category={category}>
+              {slots.map((s) => (
+                <TimeSlot key={s}>{s}</TimeSlot>
+              ))}
+            </TimelineHeader>
 
-          <TableBody $category={category}>
-            <TimelineTrack $height={trackHeight}>
-              {appts.map((appt) => {
-                const start = parseTime(appt.startTime) || minStart;
-                const end = getEnd(appt);
-                const left = ((start - minStart) / span) * 94;
-                const width = (Math.max(15, end - start) / span) * 100;
-                const bg = colorFor(appt.service || category, appt.id);
-                const textColor = "#111";
-                const lane = apptLanes[appt.id] || 0;
-                const topVal = 12 + lane * 92;
+            <TableBody $category={category}>
+              <TimelineTrack $height={trackHeight}>
+                {appts.map((appt) => {
+                  const start = parseTime(appt.startTime) || minStart;
+                  const end = getEnd(appt);
+                  const left = ((start - minStart) / span) * 94;
+                  const width = (Math.max(15, end - start) / span) * 100;
+                  const bg = colorFor(appt.service || category, appt.id);
+                  const textColor = "#111";
+                  const lane = apptLanes[appt.id] || 0;
+                  const topVal = 12 + lane * 92;
 
-                const apptEndDate = appt.endTime
-                  ? new Date(appt.endTime)
-                  : null;
-                const isPast = apptEndDate ? apptEndDate < new Date() : false;
-                return (
-                  <ApptCard
-                    key={appt.id}
-                    style={{
-                      left: `${left}%`,
-                      width: `${width}%`,
-                      top: `${topVal}px`,
-                      background: bg,
-                      opacity: isPast ? 0.65 : 1,
-                      color: textColor,
-                    }}
-                    onClick={() => {
-                      setActiveAppt(appt);
-                      setModalOpen(true);
-                    }}
-                    title={`${appt.clientName} — ${statutLabel(appt.status)}`}
-                  >
-                    <DeleteBtn
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeletingAppt(appt);
+                  const apptEndDate = appt.endTime
+                    ? new Date(appt.endTime)
+                    : null;
+                  const isPast = apptEndDate ? apptEndDate < new Date() : false;
+                  return (
+                    <ApptCard
+                      key={appt.id}
+                      style={{
+                        left: `${left}%`,
+                        width: `${width}%`,
+                        top: `${topVal}px`,
+                        background: bg,
+                        opacity: isPast ? 0.65 : 1,
+                        color: textColor,
                       }}
-                      title="Supprimer le rendez-vous"
+                      onClick={() => {
+                        setActiveAppt(appt);
+                        setModalOpen(true);
+                      }}
+                      title={`${appt.clientName} — ${statutLabel(appt.status)}`}
                     >
-                      ✕
-                    </DeleteBtn>
+                      <DeleteBtn
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingAppt(appt);
+                        }}
+                        title="Supprimer le rendez-vous"
+                      >
+                        ✕
+                      </DeleteBtn>
 
-                    <ApptTitle>{appt.clientName}</ApptTitle>
-                    <ApptMeta>
-                      {statutLabel(appt.status)}
-                      {appt.price ? ` • ${appt.price} DA` : ""}
-                      {appt.practitioner
-                        ? ` • ${practitioners.find((p) => p._id === appt.practitioner)?.fullName || "Praticienne inconnue"}`
-                        : ""}
-                    </ApptMeta>
-                  </ApptCard>
-                );
-              })}
-            </TimelineTrack>
-          </TableBody>
-        </InnerTimelineWrapper>
-      </ScrollContainer>
+                      <ApptTitle>{appt.clientName}</ApptTitle>
+                      <ApptMeta>
+                        {statutLabel(appt.status)}
+                        {appt.price ? ` • ${appt.price} DA` : ""}
+                        {appt.practitioner
+                          ? ` • ${practitioners.find((p) => p._id === appt.practitioner)?.fullName || "Praticienne inconnue"}`
+                          : ""}
+                      </ApptMeta>
+                    </ApptCard>
+                  );
+                })}
+              </TimelineTrack>
+            </TableBody>
+          </InnerTimelineWrapper>
+        </ScrollContainer>
+      )}
 
       {category === "mariees" && (
         <ShiftsSection $category={category}>
@@ -947,6 +937,7 @@ export default function Table({
           )}
         </ShiftsSection>
       )}
+
       {/* Popup de confirmation de suppression de rendez-vous */}
       {deletingAppt && (
         <ConfirmOverlay onClick={() => setDeletingAppt(null)}>
@@ -972,14 +963,16 @@ export default function Table({
         </ConfirmOverlay>
       )}
 
-      {/* POPUP DE CONFIRMATION DE SUPPRESSION D'UN DEPLACEMENT */}
+      {/* POPUP DE CONFIRMATION DE SUPPRESSION D'UN DÉPLACEMENT */}
       {deletingShift && (
         <ConfirmOverlay onClick={() => setDeletingShift(null)}>
           <ConfirmBox onClick={(e) => e.stopPropagation()}>
             <h4>Supprimer le déplacement</h4>
             <p>
               Voulez-vous vraiment supprimer le déplacement de{" "}
-              <strong>{getPractitionerName(deletingShift.practitioner)}</strong>{" "}
+              <strong>
+                {getPractitionerName(deletingShift.practitioner)}
+              </strong>{" "}
               ?
             </p>
             <ConfirmActions>
@@ -1007,10 +1000,16 @@ export default function Table({
                 ? "Modifier le déplacement"
                 : "Créer un déplacement"}
             </h4>
+
             <Form onSubmit={handleShiftSubmit}>
+              {shiftConflictError && (
+                <ErrorBanner>{shiftConflictError}</ErrorBanner>
+              )}
+
               <FormGroup>
-                <label>Praticienne</label>
+                <label>Praticienne *</label>
                 <select
+                  required
                   value={shiftFormData.practitioner}
                   onChange={(e) =>
                     setShiftFormData({
@@ -1018,11 +1017,8 @@ export default function Table({
                       practitioner: e.target.value,
                     })
                   }
-                  required
                 >
-                  <option value="" disabled>
-                    Sélectionner une praticienne
-                  </option>
+                  <option value="">Sélectionner une praticienne</option>
                   {practitioners.map((p) => (
                     <option key={p._id} value={p._id}>
                       {p.fullName || p.name}
@@ -1031,11 +1027,27 @@ export default function Table({
                 </select>
               </FormGroup>
 
+              <FormGroup>
+                <label>Nom du Client / Motif</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Déplacement à domicile Mariée"
+                  value={shiftFormData.clientName}
+                  onChange={(e) =>
+                    setShiftFormData({
+                      ...shiftFormData,
+                      clientName: e.target.value,
+                    })
+                  }
+                />
+              </FormGroup>
+
               <FormRow>
                 <FormGroup>
-                  <label>Heure de début</label>
+                  <label>Début *</label>
                   <input
                     type="time"
+                    required
                     value={shiftFormData.startTime}
                     onChange={(e) =>
                       setShiftFormData({
@@ -1043,13 +1055,14 @@ export default function Table({
                         startTime: e.target.value,
                       })
                     }
-                    required
                   />
                 </FormGroup>
+
                 <FormGroup>
-                  <label>Heure de fin</label>
+                  <label>Fin *</label>
                   <input
                     type="time"
+                    required
                     value={shiftFormData.endTime}
                     onChange={(e) =>
                       setShiftFormData({
@@ -1057,13 +1070,12 @@ export default function Table({
                         endTime: e.target.value,
                       })
                     }
-                    required
                   />
                 </FormGroup>
               </FormRow>
 
               <FormGroup>
-                <label>Tarif / Prix (DA)</label>
+                <label>Tarif (DA)</label>
                 <input
                   type="number"
                   min="0"
@@ -1074,35 +1086,21 @@ export default function Table({
                       price: e.target.value,
                     })
                   }
-                  required
                 />
               </FormGroup>
 
               <FormGroup>
-                <label>Nom du client</label>
-                <input
-                  type="text"
-                  min="0"
-                  value={shiftFormData.clientName}
+                <label>Note / Détails</label>
+                <textarea
+                  rows="3"
+                  placeholder="Adresse, détails spécifiques..."
+                  value={shiftFormData.note}
                   onChange={(e) =>
                     setShiftFormData({
                       ...shiftFormData,
-                      clientName: e.target.value,
+                      note: e.target.value,
                     })
                   }
-                  required
-                />
-              </FormGroup>
-
-              <FormGroup>
-                <label>Note / Commentaire</label>
-                <textarea
-                  rows="2"
-                  value={shiftFormData.note}
-                  onChange={(e) =>
-                    setShiftFormData({ ...shiftFormData, note: e.target.value })
-                  }
-                  placeholder="Informations complémentaires..."
                 />
               </FormGroup>
 
@@ -1113,11 +1111,21 @@ export default function Table({
                 >
                   Annuler
                 </DateButton>
-                <TodayButton type="submit" disabled={isShiftSubmitting}>
+                <TodayButton
+                  type="submit"
+                  disabled={isShiftSubmitting || !!shiftConflictError}
+                  style={{
+                    opacity: isShiftSubmitting || !!shiftConflictError ? 0.5 : 1,
+                    cursor:
+                      isShiftSubmitting || !!shiftConflictError
+                        ? "not-allowed"
+                        : "pointer",
+                  }}
+                >
                   {isShiftSubmitting
                     ? "Enregistrement..."
                     : editingShift
-                      ? "Mettre à jour"
+                      ? "Enregistrer"
                       : "Créer"}
                 </TodayButton>
               </ConfirmActions>
@@ -1126,29 +1134,19 @@ export default function Table({
         </ConfirmOverlay>
       )}
 
-      {/* Modal existante de RDV */}
-      <Modal
-        open={modalOpen}
-        activeCategory={category}
-        initialData={activeAppt}
-        isEditing={!!activeAppt}
-        serverError={serverModalError}
-        onClose={() => {
-          setModalOpen(false);
-          setServerModalError("");
-        }}
-        onSave={(data) => {
-          if (!activeAppt) return;
-
-          const keys = Object.keys(data);
-          const values = Object.values(data);
-          onApptChange(activeAppt.id, keys, values);
-          setModalOpen(false);
-          setServerModalError("");
-        }}
-        practitioners={practitioners}
-        existingAppointments={allAppts}
-      />
+      {/* Modal d'édition/affichage classique si un RDV est sélectionné */}
+      {modalOpen && activeAppt && (
+        <Modal
+          appt={activeAppt}
+          allAppts={allAppts}
+          onClose={() => {
+            setModalOpen(false);
+            setActiveAppt(null);
+          }}
+          onApptChange={onApptChange}
+          practitioners={practitioners}
+        />
+      )}
     </TableWrap>
   );
 }
