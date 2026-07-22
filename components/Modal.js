@@ -473,11 +473,9 @@ export default function Modal({
       );
       const nameToDisplay = currentPractitioner
         ? currentPractitioner.fullName
-        : "Ce praticien";
+        : "Choisie";
 
-      const errorMessage = isNewAppointmentHammam
-        ? `La praticienne ${nameToDisplay} a déjà atteint la capacité maximale de 6 rendez-vous simultanés pour le Hammam sur cette plage.`
-        : `La praticienne ${nameToDisplay} est déjà occupée ou gère un groupe sur cette plage horaire.`;
+      const errorMessage = `La praticienne ${nameToDisplay} est déjà occupée ou gère un groupe sur cette plage horaire.`
 
       setModalError(errorMessage);
       return;

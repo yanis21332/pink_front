@@ -147,7 +147,7 @@ export default function HomePage() {
       }
     };
     fetchAppointments();
-  },[currentMonthStr]);
+  }, [currentMonthStr]);
   useEffect(() => {
     const fetchPractitioners = async () => {
       try {
