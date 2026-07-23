@@ -100,6 +100,11 @@ const FormGroup = styled.div`
     }
   }
 `;
+const FormRow = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+`;
 
 const TimeRow = styled.div`
   display: flex;
@@ -271,6 +276,16 @@ export default function Modal({
   });
   const [showCalendar, setShowCalendar] = useState(false);
 
+  const [isShift, setIsShift] = useState(false);
+  const [shiftFormData, setShiftFormData] = useState({
+    practitioner: "",
+    startTime: "09:00",
+    endTime: "12:00",
+    price: 0,
+    note: "",
+    clientName: "",
+  });
+
   const getTodayDate = () => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -364,7 +379,7 @@ export default function Modal({
     setFormData((prev) => {
       const updated = { ...prev, [field]: value };
       // Si le statut repasse à "impayé", on réinitialise le montant (price)
-      if (field === "statut" && value === "impayé") {
+      if (field === "status" && value === "impayé") {
         updated.price = "";
       }
       return updated;
@@ -475,7 +490,7 @@ export default function Modal({
         ? currentPractitioner.fullName
         : "Choisie";
 
-      const errorMessage = `La praticienne ${nameToDisplay} est déjà occupée ou gère un groupe sur cette plage horaire.`
+      const errorMessage = `La praticienne ${nameToDisplay} est déjà occupée ou gère un groupe sur cette plage horaire.`;
 
       setModalError(errorMessage);
       return;
@@ -497,7 +512,13 @@ export default function Modal({
 
     setModalError("");
 
-    onSave(finalData);
+    if (isEditing) {
+      const fields = Object.keys(finalData);
+      const values = Object.values(finalData);
+      onSave(formData.id, fields, values);
+    } else {
+      onSave(finalData);
+    }
 
     setFormData({
       ...defaultData,
@@ -506,6 +527,8 @@ export default function Modal({
         ? availablePractitioners[0].id
         : "",
     });
+
+    onClose();
   };
 
   const formatTimeToInput = (timeValue) => {
@@ -577,9 +600,9 @@ export default function Modal({
                 ? "Sélectionnez une praticienne"
                 : "Aucune praticienne disponible"}
             </option>
-            {availablePractitioners.map((pr) => {
+            {availablePractitioners.map((pr, i) => {
               return (
-                <option key={pr.id} value={pr.id}>
+                <option key={`${pr.id}&${i}`} value={pr.id}>
                   {getPractitionerLabel(pr)}
                 </option>
               );
@@ -659,7 +682,9 @@ export default function Modal({
         {(formData.status === "payé" || formData.status === "acompte") && (
           <FormGroup>
             <label>
-              {formData.status === "acompte" ? "Montant de l'acompte (DA)" : "Montant payé (DA)"}
+              {formData.status === "acompte"
+                ? "Montant de l'acompte (DA)"
+                : "Montant payé (DA)"}
             </label>
             <input
               type="number"

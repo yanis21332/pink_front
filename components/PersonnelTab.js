@@ -4,6 +4,7 @@ import { useState } from "react";
 import styled from "styled-components";
 import api from "../lib/axios";
 import { API } from "../lib/data";
+import { logout } from "../lib/auth";
 
 const allowedSpecialties = [
   "hammam",
@@ -114,7 +115,8 @@ const Button = styled.button`
   padding: 8px 14px;
   border-radius: 999px;
   border: 1px solid rgba(251, 248, 243, 0.15);
-  background: ${(props) => (props.$danger ? "rgba(178, 59, 59, 0.12)" : "transparent")};
+  background: ${(props) =>
+    props.$danger ? "rgba(178, 59, 59, 0.12)" : "transparent"};
   color: ${(props) => (props.$danger ? "#ed96a6" : "var(--blanc)")};
   font-size: 13px;
   font-weight: 700;
@@ -122,7 +124,8 @@ const Button = styled.button`
   transition: all 0.16s ease;
 
   &:hover {
-    background: ${(props) => (props.$danger ? "rgba(178, 59, 59, 0.18)" : "rgba(251, 248, 243, 0.06)")};
+    background: ${(props) =>
+      props.$danger ? "rgba(178, 59, 59, 0.18)" : "rgba(251, 248, 243, 0.06)"};
   }
 `;
 
@@ -267,12 +270,20 @@ const EmptyState = styled.div`
   font-size: 14px;
 `;
 
-const formatPrice = (value) => `${Number(value || 0).toLocaleString("fr-FR")} DA`;
+const formatPrice = (value) =>
+  `${Number(value || 0).toLocaleString("fr-FR")} DA`;
 
-export default function PersonnelTab({ practitioners = [], onPractitionersChange, menu = [], onMenuChange }) {
+export default function PersonnelTab({
+  practitioners = [],
+  onPractitionersChange,
+  menu = [],
+  onMenuChange,
+}) {
   const [showPractitionerForm, setShowPractitionerForm] = useState(false);
   const [newPractitionerName, setNewPractitionerName] = useState("");
-  const [newPractitionerSpecialties, setNewPractitionerSpecialties] = useState([]);
+  const [newPractitionerSpecialties, setNewPractitionerSpecialties] = useState(
+    [],
+  );
   const [editPractitionerId, setEditPractitionerId] = useState(null);
   const [editSpecialties, setEditSpecialties] = useState([]);
   const [practitionerError, setPractitionerError] = useState("");
@@ -328,19 +339,25 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
       setNewPractitionerSpecialties([]);
       setShowPractitionerForm(false);
     } catch (error) {
-      setPractitionerError(error?.response?.data?.error || error.message || "Erreur lors de la création.");
+      setPractitionerError(
+        error?.response?.data?.error ||
+          error.message ||
+          "Erreur lors de la création.",
+      );
     }
   };
 
   const handleUpdatePractitioner = async (practitioner) => {
     if (!editSpecialties.length) {
-      setPractitionerError("La praticienne doit avoir au moins une spécialité.");
+      setPractitionerError(
+        "La praticienne doit avoir au moins une spécialité.",
+      );
       return;
     }
 
     try {
       const response = await api.patch(
-        `${API}/api/practitioner/update-practitioner/${practitioner.id||practitioner._id}`,
+        `${API}/api/practitioner/update-practitioner/${practitioner.id || practitioner._id}`,
         {
           domain: editSpecialties,
         },
@@ -359,7 +376,11 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
       setEditSpecialties([]);
       setPractitionerError("");
     } catch (error) {
-      setPractitionerError(error?.response?.data?.error || error.message || "Erreur lors de la mise à jour.");
+      setPractitionerError(
+        error?.response?.data?.error ||
+          error.message ||
+          "Erreur lors de la mise à jour.",
+      );
     }
   };
 
@@ -368,13 +389,16 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
     if (!confirmed) return;
 
     try {
-      await api.delete(
-        `${API}/api/practitioner/delete-practitioner/${id}`,
-        { withCredentials: true },
-      );
+      await api.delete(`${API}/api/practitioner/delete-practitioner/${id}`, {
+        withCredentials: true,
+      });
       onPractitionersChange((prev) => prev.filter((item) => item.id !== id));
     } catch (error) {
-      setPractitionerError(error?.response?.data?.error || error.message || "Erreur lors de la suppression.");
+      setPractitionerError(
+        error?.response?.data?.error ||
+          error.message ||
+          "Erreur lors de la suppression.",
+      );
     }
   };
 
@@ -401,28 +425,40 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
       setNewCategoryName("");
       setShowCategoryForm(false);
     } catch (error) {
-      setCategoryError(error?.response?.data?.error || error.message || "Erreur lors de la création.");
+      setCategoryError(
+        error?.response?.data?.error ||
+          error.message ||
+          "Erreur lors de la création.",
+      );
     }
   };
 
   const handleDeleteCategory = async (id) => {
-    const confirmed = window.confirm("Supprimer cette catégorie et tous ses services ?");
+    const confirmed = window.confirm(
+      "Supprimer cette catégorie et tous ses services ?",
+    );
     if (!confirmed) return;
 
     try {
-      await api.delete(
-        `${API}/api/menu/delete-category/${id}`,
-        { withCredentials: true },
-      );
+      await api.delete(`${API}/api/menu/delete-category/${id}`, {
+        withCredentials: true,
+      });
       onMenuChange((prev) => prev.filter((category) => category.id !== id));
     } catch (error) {
-      setCategoryError(error?.response?.data?.error || error.message || "Erreur lors de la suppression.");
+      setCategoryError(
+        error?.response?.data?.error ||
+          error.message ||
+          "Erreur lors de la suppression.",
+      );
     }
   };
 
   const handleOpenServiceForm = (categoryId) => {
     setServiceFormOpen(serviceFormOpen === categoryId ? null : categoryId);
-    setServiceFormData((prev) => ({ ...prev, [categoryId]: { name: "", price: "", duration: "" } }));
+    setServiceFormData((prev) => ({
+      ...prev,
+      [categoryId]: { name: "", price: "", duration: "" },
+    }));
     setServiceError("");
   };
 
@@ -467,7 +503,11 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
       setServiceFormOpen(null);
       setServiceError("");
     } catch (error) {
-      setServiceError(error?.response?.data?.error || error.message || "Erreur lors de l'ajout du service.");
+      setServiceError(
+        error?.response?.data?.error ||
+          error.message ||
+          "Erreur lors de l'ajout du service.",
+      );
     }
   };
 
@@ -485,9 +525,15 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
         throw new Error("Impossible de supprimer le service.");
       }
       const mappedCategory = { ...updated, id: updated._id || categoryId };
-      onMenuChange((prev) => prev.map((item) => (item.id === categoryId ? mappedCategory : item)));
+      onMenuChange((prev) =>
+        prev.map((item) => (item.id === categoryId ? mappedCategory : item)),
+      );
     } catch (error) {
-      setServiceError(error?.response?.data?.error || error.message || "Erreur lors de la suppression du service.");
+      setServiceError(
+        error?.response?.data?.error ||
+          error.message ||
+          "Erreur lors de la suppression du service.",
+      );
     }
   };
 
@@ -504,6 +550,26 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
     setPractitionerError("");
   };
 
+  const clearAllCookies = () => {
+    document.cookie.split(";").forEach((cookie) => {
+      const eqPos = cookie.indexOf("=");
+      console.log("cookie !! ")
+      
+      const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+      console.log(name)
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+    });
+  };
+  const handleLogOut = async () => {
+    localStorage.clear();
+    sessionStorage.clear();
+
+    // 2. Supprimer tous les cookies accessibles en JS
+    clearAllCookies();
+
+    // 3. Rediriger l'utilisateur
+    //window.location.href = "/login";
+  };
   return (
     <Container>
       <Section>
@@ -511,10 +577,13 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
           <div>
             <SectionTitle>Praticiennes</SectionTitle>
             <SectionDescription>
-              Gère les praticiennes de l'établissement, leurs domaines et leurs spécialités.
+              Gère les praticiennes de l'établissement, leurs domaines et leurs
+              spécialités.
             </SectionDescription>
           </div>
-          <ActionButton onClick={() => setShowPractitionerForm((prev) => !prev)}>
+          <ActionButton
+            onClick={() => setShowPractitionerForm((prev) => !prev)}
+          >
             {showPractitionerForm ? "Annuler" : "Nouvelle praticienne"}
           </ActionButton>
         </SectionHeader>
@@ -556,28 +625,47 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
             <ButtonGroup>
               <Button onClick={handleCreatePractitioner}>Créer</Button>
             </ButtonGroup>
-            {practitionerError && <ErrorMessage>{practitionerError}</ErrorMessage>}
+            {practitionerError && (
+              <ErrorMessage>{practitionerError}</ErrorMessage>
+            )}
           </InlineForm>
         )}
 
         <Card>
           {(practitioners || []).length ? (
-            practitioners.map((practitioner,i) => {
-              const specialties = practitioner.specialties || practitioner.domain || [];
+            practitioners.map((practitioner, i) => {
+              const specialties =
+                practitioner.specialties || practitioner.domain || [];
               return (
                 <ItemRow key={i}>
                   <ItemHeader>
                     <ItemTitle>
-                      <ItemName>{practitioner.fullName || practitioner.name || "Praticienne"}</ItemName>
+                      <ItemName>
+                        {practitioner.fullName ||
+                          practitioner.name ||
+                          "Praticienne"}
+                      </ItemName>
                       <ItemMeta>
-                        Spécialités : {specialties.length ? specialties.join(", ") : "Aucune"}
+                        Spécialités :{" "}
+                        {specialties.length ? specialties.join(", ") : "Aucune"}
                       </ItemMeta>
                     </ItemTitle>
                     <ButtonGroup>
-                      <Button onClick={() => startEditingPractitioner(practitioner)}>
-                        {editPractitionerId === practitioner.id ? "Annuler" : "Modifier"}
+                      <Button
+                        onClick={() => startEditingPractitioner(practitioner)}
+                      >
+                        {editPractitionerId === practitioner.id
+                          ? "Annuler"
+                          : "Modifier"}
                       </Button>
-                      <Button $danger onClick={() => handleDeletePractitioner(practitioner.id||practitioner._id)}>
+                      <Button
+                        $danger
+                        onClick={() =>
+                          handleDeletePractitioner(
+                            practitioner.id || practitioner._id,
+                          )
+                        }
+                      >
                         Supprimer
                       </Button>
                     </ButtonGroup>
@@ -594,7 +682,11 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
                                 type="checkbox"
                                 checked={editSpecialties.includes(specialty)}
                                 onChange={() =>
-                                  handleToggleSpecialty(specialty, editSpecialties, setEditSpecialties)
+                                  handleToggleSpecialty(
+                                    specialty,
+                                    editSpecialties,
+                                    setEditSpecialties,
+                                  )
                                 }
                               />
                               {specialty}
@@ -603,18 +695,24 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
                         </CheckboxGrid>
                       </Label>
                       <ButtonGroup>
-                        <Button onClick={() => handleUpdatePractitioner(practitioner)}>
+                        <Button
+                          onClick={() => handleUpdatePractitioner(practitioner)}
+                        >
                           Enregistrer
                         </Button>
                       </ButtonGroup>
-                      {practitionerError && <ErrorMessage>{practitionerError}</ErrorMessage>}
+                      {practitionerError && (
+                        <ErrorMessage>{practitionerError}</ErrorMessage>
+                      )}
                     </InlineForm>
                   )}
                 </ItemRow>
               );
             })
           ) : (
-            <EmptyState>Aucune praticienne enregistrée pour le moment.</EmptyState>
+            <EmptyState>
+              Aucune praticienne enregistrée pour le moment.
+            </EmptyState>
           )}
         </Card>
       </Section>
@@ -624,7 +722,8 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
           <div>
             <SectionTitle>Menu des tarifs</SectionTitle>
             <SectionDescription>
-              Ajoute ou supprime des catégories et des services. Chaque service peut être prix en DA.
+              Ajoute ou supprime des catégories et des services. Chaque service
+              peut être prix en DA.
             </SectionDescription>
           </div>
           <ActionButton onClick={() => setShowCategoryForm((prev) => !prev)}>
@@ -652,20 +751,29 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
           </InlineForm>
         )}
 
-        <div style={{ display: "grid", gap: "16px",marginTop: "8px" }}>
+        <div style={{ display: "grid", gap: "16px", marginTop: "8px" }}>
           {(menu || []).length ? (
-            menu.map((category,i) => (
-              <CategoryCard key={category.id+i}>
+            menu.map((category, i) => (
+              <CategoryCard key={category.id + i}>
                 <ItemHeader>
                   <ItemTitle>
                     <ItemName>{category.categoryName || "Catégorie"}</ItemName>
-                    <ItemMeta>{(category.services || []).length} service(s)</ItemMeta>
+                    <ItemMeta>
+                      {(category.services || []).length} service(s)
+                    </ItemMeta>
                   </ItemTitle>
                   <ButtonGroup>
                     <Button onClick={() => handleOpenServiceForm(category.id)}>
-                      {serviceFormOpen === category.id ? "Fermer" : "Ajouter un service"}
+                      {serviceFormOpen === category.id
+                        ? "Fermer"
+                        : "Ajouter un service"}
                     </Button>
-                    <Button $danger onClick={() => handleDeleteCategory(category.id||category._id)}>
+                    <Button
+                      $danger
+                      onClick={() =>
+                        handleDeleteCategory(category.id || category._id)
+                      }
+                    >
                       Supprimer la catégorie
                     </Button>
                   </ButtonGroup>
@@ -682,7 +790,15 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
                         </ServiceInfo>
                       </ServiceMeta>
                       <ServiceActions>
-                        <Button $danger onClick={() => handleDeleteService(category.id, service._id || service.id)}>
+                        <Button
+                          $danger
+                          onClick={() =>
+                            handleDeleteService(
+                              category.id,
+                              service._id || service.id,
+                            )
+                          }
+                        >
                           Supprimer
                         </Button>
                       </ServiceActions>
@@ -700,7 +816,13 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
                         <Input
                           type="text"
                           value={serviceFormData[category.id]?.name || ""}
-                          onChange={(e) => handleServiceInputChange(category.id, "name", e.target.value)}
+                          onChange={(e) =>
+                            handleServiceInputChange(
+                              category.id,
+                              "name",
+                              e.target.value,
+                            )
+                          }
                           placeholder="Ex. Gommage"
                         />
                       </Label>
@@ -710,7 +832,13 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
                           type="number"
                           min="0"
                           value={serviceFormData[category.id]?.price || ""}
-                          onChange={(e) => handleServiceInputChange(category.id, "price", e.target.value)}
+                          onChange={(e) =>
+                            handleServiceInputChange(
+                              category.id,
+                              "price",
+                              e.target.value,
+                            )
+                          }
                           placeholder="1000"
                         />
                       </Label>
@@ -720,23 +848,39 @@ export default function PersonnelTab({ practitioners = [], onPractitionersChange
                       <Input
                         type="text"
                         value={serviceFormData[category.id]?.duration || ""}
-                        onChange={(e) => handleServiceInputChange(category.id, "duration", e.target.value)}
+                        onChange={(e) =>
+                          handleServiceInputChange(
+                            category.id,
+                            "duration",
+                            e.target.value,
+                          )
+                        }
                         placeholder="Ex. 45 min"
                       />
                     </Label>
                     <ButtonGroup>
-                      <Button onClick={() => handleAddService(category.id)}>Ajouter le service</Button>
+                      <Button onClick={() => handleAddService(category.id)}>
+                        Ajouter le service
+                      </Button>
                     </ButtonGroup>
-                    {serviceError && <ErrorMessage>{serviceError}</ErrorMessage>}
+                    {serviceError && (
+                      <ErrorMessage>{serviceError}</ErrorMessage>
+                    )}
                   </InlineForm>
                 )}
               </CategoryCard>
             ))
           ) : (
-            <EmptyState>Aucune catégorie tarifaire disponible pour le moment.</EmptyState>
+            <EmptyState>
+              Aucune catégorie tarifaire disponible pour le moment.
+            </EmptyState>
           )}
         </div>
       </Section>
+
+      <Button style={{ background: "#491919" }} onClick={()=>logout()}>
+        Se déconnecter
+      </Button>
     </Container>
   );
 }

@@ -512,7 +512,10 @@ export default function Table({
       const aId = a.id || a._id;
       if (currentEditingId && aId === currentEditingId) return false; // Ne pas se comparer à soi-même
 
-      const pId = typeof a.practitioner === "object" ? a.practitioner?._id : a.practitioner;
+      const pId =
+        typeof a.practitioner === "object"
+          ? a.practitioner?._id
+          : a.practitioner;
       if (pId !== shiftFormData.practitioner) return false;
 
       // Vérifier si c'est la même date
@@ -530,9 +533,10 @@ export default function Table({
           const formattedStart = item.startTime.includes("T")
             ? item.startTime.split("T")[1].substring(0, 5)
             : item.startTime;
-          const formattedEnd = item.endTime && item.endTime.includes("T")
-            ? item.endTime.split("T")[1].substring(0, 5)
-            : "";
+          const formattedEnd =
+            item.endTime && item.endTime.includes("T")
+              ? item.endTime.split("T")[1].substring(0, 5)
+              : "";
 
           return `Conflit d'horaire : Le praticien a déjà un rendez-vous / déplacement prévu (${formattedStart}${formattedEnd ? " - " + formattedEnd : ""}).`;
         }
@@ -858,10 +862,13 @@ export default function Table({
                         color: textColor,
                       }}
                       onClick={() => {
+                        console.log("cliqué");
+                        console.log(appt);
                         setActiveAppt(appt);
                         setModalOpen(true);
                       }}
                       title={`${appt.clientName} — ${statutLabel(appt.status)}`}
+                      $service = {appt.service}
                     >
                       <DeleteBtn
                         onClick={(e) => {
@@ -873,7 +880,7 @@ export default function Table({
                         ✕
                       </DeleteBtn>
 
-                      <ApptTitle>{appt.clientName}</ApptTitle>
+                      <ApptTitle>{appt.clientName} {appt.service==="deplacement"&&"(Déplacement !)"}</ApptTitle>
                       <ApptMeta>
                         {statutLabel(appt.status)}
                         {appt.price ? ` • ${appt.price} DA` : ""}
@@ -938,6 +945,24 @@ export default function Table({
         </ShiftsSection>
       )}
 
+      {/* Modal d'édition/affichage classique si un RDV est sélectionné */}
+      {modalOpen && activeAppt && (
+        <Modal
+          open={modalOpen}
+          isEditing={true}
+          appt={activeAppt}
+          activeCategory={category}
+          allAppts={allAppts}
+          initialData={activeAppt}
+          onClose={() => {
+            setModalOpen(false);
+            setActiveAppt(null);
+          }}
+          onSave={onApptChange}
+          className="izanus"
+          practitioners={practitioners}
+        />
+      )}
       {/* Popup de confirmation de suppression de rendez-vous */}
       {deletingAppt && (
         <ConfirmOverlay onClick={() => setDeletingAppt(null)}>
@@ -970,9 +995,7 @@ export default function Table({
             <h4>Supprimer le déplacement</h4>
             <p>
               Voulez-vous vraiment supprimer le déplacement de{" "}
-              <strong>
-                {getPractitionerName(deletingShift.practitioner)}
-              </strong>{" "}
+              <strong>{getPractitionerName(deletingShift.practitioner)}</strong>{" "}
               ?
             </p>
             <ConfirmActions>
@@ -1115,7 +1138,8 @@ export default function Table({
                   type="submit"
                   disabled={isShiftSubmitting || !!shiftConflictError}
                   style={{
-                    opacity: isShiftSubmitting || !!shiftConflictError ? 0.5 : 1,
+                    opacity:
+                      isShiftSubmitting || !!shiftConflictError ? 0.5 : 1,
                     cursor:
                       isShiftSubmitting || !!shiftConflictError
                         ? "not-allowed"
@@ -1132,20 +1156,6 @@ export default function Table({
             </Form>
           </ConfirmBox>
         </ConfirmOverlay>
-      )}
-
-      {/* Modal d'édition/affichage classique si un RDV est sélectionné */}
-      {modalOpen && activeAppt && (
-        <Modal
-          appt={activeAppt}
-          allAppts={allAppts}
-          onClose={() => {
-            setModalOpen(false);
-            setActiveAppt(null);
-          }}
-          onApptChange={onApptChange}
-          practitioners={practitioners}
-        />
       )}
     </TableWrap>
   );
