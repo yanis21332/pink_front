@@ -44,7 +44,7 @@ const AlertBox = styled.div`
 `;
 
 // Configuration de base d'Axios (à adapter selon l'URL de votre serveur)
-const API_URL = `${API || "http://localhost:5000"}/api/appointements`;
+const API_URL = `${API}/api/appointements`;
 
 export default function HomePage() {
   // On commence avec un tableau vide, en attendant les données du serveur
